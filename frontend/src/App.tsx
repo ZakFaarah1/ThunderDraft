@@ -1,6 +1,32 @@
+import { useEffect, useState } from "react";
 import "./App.css";
 
+type ApiStatus = "checking" | "healthy" | "offline";
+
 function App() {
+  const [apiStatus, setApiStatus] = useState<ApiStatus>("checking");
+
+  useEffect(() => {
+    const apiUrl = `http://${window.location.hostname}:8001/api/health`;
+
+    fetch(apiUrl)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("API request failed");
+        }
+
+        return response.json();
+      })
+      .then(() => setApiStatus("healthy"))
+      .catch(() => setApiStatus("offline"));
+  }, []);
+
+  const statusText = {
+    checking: "Checking API",
+    healthy: "API Online",
+    offline: "API Offline",
+  }[apiStatus];
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -13,9 +39,9 @@ function App() {
           </div>
         </div>
 
-        <div className="status-pill">
+        <div className={`status-pill status-${apiStatus}`}>
           <span className="status-dot" />
-          Development Mode
+          {statusText}
         </div>
       </header>
 
