@@ -249,6 +249,17 @@ def normalize_player(
         raw_player.get("espn_id"),
     )
 
+    raw_gsis_id = get_optional_string(
+        raw_player.get("gsis_id"),
+    )
+
+    # Removes whitespace sometimes included in Sleeper identifiers.
+    gsis_id = (
+        raw_gsis_id.strip()
+        if raw_gsis_id
+        else None
+    )
+
     raw_team = get_optional_string(
         raw_player.get("team"),
     )
@@ -319,6 +330,7 @@ def normalize_player(
             raw_player.get("search_rank"),
         ),
         espnId=espn_id,
+        gsisId=gsis_id,
         imageUrl=build_sleeper_image_url(
             player_id,
             position,

@@ -2611,3 +2611,872 @@ button {
     );
   }
 }
+/* Styles the historical NFL statistics page. */
+.stats-page {
+  display: grid;
+  gap: 1.5rem;
+  padding: 2rem 0 4rem;
+}
+
+.stats-page-heading {
+  align-items: end;
+  display: flex;
+  gap: 2rem;
+  justify-content: space-between;
+}
+
+.stats-page-heading h2,
+.stats-history-heading h3 {
+  margin-bottom: 0.35rem;
+}
+
+.stats-page-heading p,
+.stats-history-heading p {
+  margin-bottom: 0;
+}
+
+.stats-season-control {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 8rem;
+}
+
+.stats-season-control label,
+.stats-search span {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.stats-season-control select,
+.stats-search input {
+  background: var(--panel-background, #ffffff);
+  border: 1px solid var(--border-color, #d8dde8);
+  border-radius: 0.75rem;
+  color: inherit;
+  font: inherit;
+  padding: 0.75rem 0.9rem;
+}
+
+.stats-summary-row {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.stats-summary-card {
+  background: var(--panel-background, #ffffff);
+  border: 1px solid var(--border-color, #d8dde8);
+}
+
+.stats-summary-card {
+  background: var(--panel-background, #ffffff);
+  border: 1px solid var(--border-color, #d8dde8);
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+
+.stats-summary-card span {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.stats-summary-card strong {
+  font-size: 1.25rem;
+}
+
+.stats-controls {
+  align-items: end;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.stats-search {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 28rem;
+  width: 100%;
+}
+
+.stats-position-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.stats-position-filter {
+  background: transparent;
+  border: 1px solid var(--border-color, #d8dde8);
+  border-radius: 999px;
+  color: inherit;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0.55rem 0.85rem;
+}
+
+.active-stats-filter {
+  background: var(--accent-color, #7655ff);
+  color: #ffffff;
+}
+
+.stats-message,
+.stats-history-panel {
+  background: var(--panel-background, #ffffff);
+  border: 1px solid var(--border-color, #d8dde8);
+  border-radius: 1rem;
+  padding: 1.25rem;
+}
+
+.stats-error {
+  border-color: #c84242;
+}
+
+.stats-table-wrapper {
+  border: 1px solid var(--border-color, #d8dde8);
+  border-radius: 1rem;
+  overflow-x: auto;
+}
+
+.stats-table {
+  border-collapse: collapse;
+  min-width: 980px;
+  width: 100%;
+}
+
+.stats-table th,
+.stats-table td {
+  border-bottom: 1px solid var(--border-color, #d8dde8);
+  padding: 0.8rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.stats-table th:nth-child(2),
+.stats-table td:nth-child(2) {
+  text-align: left;
+}
+
+.stats-table th button {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+}
+
+.stats-position-rank {
+  display: block;
+  font-size: 0.75rem;
+  opacity: 0.65;
+}
+
+.stats-player-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0;
+  text-align: left;
+}
+
+.stats-player-button > span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.stats-player-button small {
+  opacity: 0.7;
+}
+
+.stats-player-headshot {
+  align-items: center;
+  background: var(--border-color, #d8dde8);
+  border-radius: 50%;
+  display: flex;
+  flex: 0 0 2.5rem;
+  height: 2.5rem;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  width: 2.5rem;
+}
+
+.stats-player-headshot img {
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  position: absolute;
+  width: 100%;
+}
+
+.selected-stats-row {
+  background: rgba(118, 85, 255, 0.08);
+}
+
+.stats-history-heading {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.stats-history-summary {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: 1.25rem;
+}
+
+.stats-history-summary div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.stats-history-summary span,
+.stats-history-seasons span {
+  font-size: 0.82rem;
+  opacity: 0.72;
+}
+
+.stats-history-seasons {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.stats-history-seasons article {
+  align-items: center;
+  border-top: 1px solid var(--border-color, #d8dde8);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  padding-top: 0.75rem;
+}
+
+@media (max-width: 800px) {
+  .stats-page-heading,
+  .stats-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .stats-summary-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats-history-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats-history-seasons article {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Aligns the Stats page surfaces with the ThunderDraft dark theme. */
+.stats-season-control select,
+.stats-search input {
+  background: rgba(31, 27, 4, 0.92);
+  border-color: rgba(255, 215, 48, 0.3);
+  color: #fff8d8;
+}
+
+.stats-season-control select:focus,
+.stats-search input:focus {
+  border-color: #ffd529;
+  box-shadow: 0 0 0 3px rgba(255, 213, 41, 0.14);
+  outline: none;
+}
+
+.stats-season-control option {
+  background: #211d05;
+  color: #fff8d8;
+}
+
+.stats-search input::placeholder {
+  color: rgba(255, 248, 216, 0.5);
+}
+
+.stats-summary-card {
+  background: linear-gradient(
+    145deg,
+    rgba(48, 41, 7, 0.96),
+    rgba(27, 24, 5, 0.96)
+  );
+  border-color: rgba(255, 215, 48, 0.24);
+  color: #fff8d8;
+}
+
+.stats-summary-card span {
+  color: rgba(255, 239, 171, 0.68);
+  opacity: 1;
+}
+
+.stats-summary-card strong {
+  color: #ffffff;
+}
+
+.stats-position-filter {
+  background: rgba(31, 27, 4, 0.82);
+  border-color: rgba(255, 239, 171, 0.52);
+  color: #fff8d8;
+}
+
+.stats-position-filter:hover {
+  background: rgba(255, 213, 41, 0.12);
+  border-color: #ffd529;
+}
+
+.active-stats-filter {
+  background: #7357f6;
+  border-color: #9b89ff;
+  color: #ffffff;
+}
+
+.stats-table-wrapper {
+  background: rgba(25, 22, 4, 0.7);
+  border-color: rgba(255, 239, 171, 0.48);
+}
+
+.stats-table thead {
+  background: rgba(58, 49, 7, 0.96);
+}
+
+.stats-table th {
+  color: #fff8d8;
+}
+
+.stats-table th,
+.stats-table td {
+  border-bottom-color: rgba(255, 239, 171, 0.32);
+}
+
+.stats-table tbody tr {
+  background: rgba(31, 27, 4, 0.46);
+  transition:
+    background-color 150ms ease,
+    transform 150ms ease;
+}
+
+.stats-table tbody tr:nth-child(even) {
+  background: rgba(42, 36, 5, 0.5);
+}
+
+.stats-table tbody tr:hover {
+  background: rgba(255, 213, 41, 0.1);
+}
+
+.stats-player-button,
+.stats-table th button {
+  color: #ffffff;
+}
+
+.stats-player-button small,
+.stats-position-rank {
+  color: rgba(255, 239, 171, 0.68);
+  opacity: 1;
+}
+
+.stats-player-headshot {
+  background: rgba(255, 213, 41, 0.14);
+  border: 1px solid rgba(255, 239, 171, 0.42);
+  color: #fff4a8;
+}
+
+.selected-stats-row,
+.stats-table tbody tr.selected-stats-row {
+  background: rgba(115, 87, 246, 0.2);
+  box-shadow: inset 4px 0 0 #8b73ff;
+}
+
+.stats-message,
+.stats-history-panel {
+  background: linear-gradient(
+    145deg,
+    rgba(48, 41, 7, 0.96),
+    rgba(27, 24, 5, 0.96)
+  );
+  border-color: rgba(255, 215, 48, 0.28);
+  color: #fff8d8;
+}
+
+.stats-history-summary div {
+  background: rgba(255, 213, 41, 0.06);
+  border: 1px solid rgba(255, 215, 48, 0.18);
+  border-radius: 0.75rem;
+  padding: 0.8rem;
+}
+
+.stats-history-seasons article {
+  border-top-color: rgba(255, 239, 171, 0.25);
+}
+
+/* Places the player profile above the stats page. */
+.stats-modal-backdrop {
+  align-items: center;
+  backdrop-filter: blur(6px);
+  background: rgba(7, 6, 1, 0.82);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 1000;
+}
+
+/* Styles the compact Sleeper-inspired player popup. */
+.stats-player-modal {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(47, 40, 6, 0.99),
+      rgba(18, 16, 3, 0.99)
+    );
+  border: 1px solid rgba(255, 215, 48, 0.38);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.55);
+  color: #fff8d8;
+  max-height: 88vh;
+  max-width: 820px;
+  overflow-y: auto;
+  width: 100%;
+}
+
+/* Keeps the player identity and close button together. */
+.stats-modal-header {
+  align-items: center;
+  background: rgba(28, 24, 4, 0.96);
+  border-bottom:
+    1px solid rgba(255, 215, 48, 0.22);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+/* Aligns the headshot with the player's identity. */
+.stats-modal-player {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+}
+
+/* Enlarges the headshot inside the player popup. */
+.stats-modal-headshot {
+  flex-basis: 4.5rem;
+  height: 4.5rem;
+  width: 4.5rem;
+}
+
+/* Removes default spacing from popup headings. */
+.stats-modal-player h3,
+.stats-modal-player p,
+.stats-modal-category h4,
+.stats-modal-section-heading h4 {
+  margin: 0;
+}
+
+/* Styles the popup close control. */
+.stats-modal-close {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border:
+    1px solid rgba(255, 239, 171, 0.3);
+  border-radius: 50%;
+  color: #fff8d8;
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 2.5rem;
+  font-size: 1.7rem;
+  height: 2.5rem;
+  justify-content: center;
+  line-height: 1;
+  width: 2.5rem;
+}
+
+/* Highlights the close control on interaction. */
+.stats-modal-close:hover {
+  background: rgba(255, 213, 41, 0.14);
+  border-color: #ffd529;
+}
+
+/* Displays the most important fantasy numbers first. */
+.stats-modal-summary,
+.stats-modal-career-summary {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  padding: 1.25rem;
+}
+
+/* Displays one labeled number in the popup. */
+.stats-modal-stat {
+  background: rgba(255, 213, 41, 0.06);
+  border:
+    1px solid rgba(255, 215, 48, 0.16);
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.75rem;
+}
+
+/* Styles the smaller statistic label. */
+.stats-modal-stat span {
+  color: rgba(255, 239, 171, 0.68);
+  font-size: 0.75rem;
+}
+
+/* Keeps important statistic values readable. */
+.stats-modal-stat strong {
+  color: #ffffff;
+  overflow-wrap: anywhere;
+}
+
+/* Arranges passing, rushing, receiving, and totals. */
+.stats-modal-category-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  padding: 0 1.25rem 1.25rem;
+}
+
+/* Styles one statistic category. */
+.stats-modal-category {
+  background: rgba(15, 13, 2, 0.44);
+  border:
+    1px solid rgba(255, 239, 171, 0.16);
+  border-radius: 0.9rem;
+  padding: 1rem;
+}
+
+/* Adds separation below category headings. */
+.stats-modal-category h4 {
+  color: #ffd529;
+  margin-bottom: 0.75rem;
+}
+
+/* Arranges statistics inside one category. */
+.stats-modal-stat-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+}
+
+/* Separates historical results from current-year stats. */
+.stats-modal-history {
+  border-top:
+    1px solid rgba(255, 215, 48, 0.22);
+  padding: 1.25rem;
+}
+
+/* Aligns the history heading and career total. */
+.stats-modal-section-heading {
+  align-items: end;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+/* Styles the secondary history summary. */
+.stats-modal-section-heading > span {
+  color: rgba(255, 239, 171, 0.68);
+  font-size: 0.8rem;
+}
+
+/* Removes duplicate outer padding from career cards. */
+.stats-modal-career-summary {
+  padding: 1rem 0;
+}
+
+/* Displays each historical season as one row. */
+.stats-modal-season-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* Styles one year of historical production. */
+.stats-modal-season-list article {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.025);
+  border:
+    1px solid rgba(255, 239, 171, 0.12);
+  border-radius: 0.7rem;
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns:
+    0.7fr repeat(5, 1fr);
+  padding: 0.7rem;
+}
+
+/* Highlights the season currently shown above. */
+.stats-modal-season-list article.active-modal-season {
+  background: rgba(115, 87, 246, 0.17);
+  border-color: rgba(155, 137, 255, 0.65);
+}
+
+/* Styles loading and error messages inside the popup. */
+.stats-modal-status {
+  background: rgba(255, 213, 41, 0.06);
+  border-radius: 0.75rem;
+  margin: 1rem 0 0;
+  padding: 0.85rem;
+}
+
+/* Adapts the player popup for smaller screens. */
+@media (max-width: 700px) {
+  .stats-modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .stats-player-modal {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    max-height: 92vh;
+  }
+
+  .stats-modal-summary,
+  .stats-modal-career-summary,
+  .stats-modal-category-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .stats-modal-category-grid {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  .stats-modal-season-list article {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .stats-modal-section-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+}
+
+/* Matches the Stats page to the Draft Room's black and amber theme. */
+.stats-page {
+  color: #f5f5f5;
+}
+
+/* Uses the same near-black Draft Room surfaces. */
+.stats-summary-card,
+.stats-message,
+.stats-history-panel {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(26, 26, 26, 0.96),
+      rgba(7, 7, 7, 0.96)
+    );
+  border-color: rgba(250, 204, 21, 0.2);
+  color: #f5f5f5;
+}
+
+/* Keeps summary labels visually secondary. */
+.stats-summary-card span {
+  color: #a3a3a3;
+}
+
+/* Uses the Draft Room's dark form styling. */
+.stats-season-control select,
+.stats-search input {
+  background: rgba(10, 10, 10, 0.92);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #f5f5f5;
+}
+
+/* Uses muted text for search placeholders. */
+.stats-search input::placeholder {
+  color: #737373;
+}
+
+/* Highlights focused controls with the app accent. */
+.stats-season-control select:focus,
+.stats-search input:focus {
+  border-color: rgba(250, 204, 21, 0.65);
+  box-shadow:
+    0 0 0 3px rgba(250, 204, 21, 0.1);
+}
+
+/* Keeps native season options dark. */
+.stats-season-control option {
+  background: #111111;
+  color: #f5f5f5;
+}
+
+/* Matches Draft Room filter controls. */
+.stats-position-filter {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #f5f5f5;
+}
+
+/* Uses the ThunderDraft yellow accent on hover. */
+.stats-position-filter:hover {
+  background: rgba(250, 204, 21, 0.1);
+  border-color: rgba(250, 204, 21, 0.55);
+}
+
+/* Replaces the purple filter with the Draft Room accent. */
+.active-stats-filter {
+  background: #facc15;
+  border-color: #facc15;
+  color: #090909;
+}
+
+/* Makes the statistics table match the player board. */
+.stats-table-wrapper {
+  background: rgba(10, 10, 10, 0.92);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Uses a slightly raised table heading. */
+.stats-table thead {
+  background: #111111;
+}
+
+/* Uses subtle Draft Room row separation. */
+.stats-table th,
+.stats-table td {
+  border-bottom-color:
+    rgba(255, 255, 255, 0.08);
+}
+
+/* Matches the alternating player-board surface treatment. */
+.stats-table tbody tr,
+.stats-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+/* Highlights a table row without changing its layout. */
+.stats-table tbody tr:hover {
+  background: rgba(250, 204, 21, 0.075);
+}
+
+/* Uses amber rather than purple for the selected player. */
+.selected-stats-row,
+.stats-table tbody tr.selected-stats-row {
+  background: rgba(250, 204, 21, 0.1);
+  box-shadow: inset 4px 0 0 #facc15;
+}
+
+/* Matches headshot containers used in the Draft Room. */
+.stats-player-headshot {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(38, 38, 38, 0.96),
+      rgba(12, 12, 12, 0.96)
+    );
+  border-color: rgba(250, 204, 21, 0.25);
+  color: #facc15;
+}
+
+/* Darkens the area behind the player popup. */
+.stats-modal-backdrop {
+  background: rgba(0, 0, 0, 0.82);
+}
+
+/* Matches the popup to Draft Room panels. */
+.stats-player-modal {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(26, 26, 26, 0.99),
+      rgba(7, 7, 7, 0.99)
+    );
+  border-color: rgba(250, 204, 21, 0.3);
+  color: #f5f5f5;
+}
+
+/* Keeps the player identity area near black. */
+.stats-modal-header {
+  background: rgba(10, 10, 10, 0.98);
+  border-bottom-color:
+    rgba(255, 255, 255, 0.09);
+}
+
+/* Matches the Draft Room's secondary buttons. */
+.stats-modal-close {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #f5f5f5;
+}
+
+/* Uses amber interaction styling. */
+.stats-modal-close:hover {
+  background: rgba(250, 204, 21, 0.1);
+  border-color: rgba(250, 204, 21, 0.55);
+}
+
+/* Replaces brown stat cards with neutral black surfaces. */
+.stats-modal-stat,
+.stats-modal-category {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Uses standard muted text for popup labels. */
+.stats-modal-stat span,
+.stats-modal-section-heading > span {
+  color: #a3a3a3;
+}
+
+/* Keeps section titles tied to the app accent. */
+.stats-modal-category h4 {
+  color: #facc15;
+}
+
+/* Matches history rows with the Draft Room list design. */
+.stats-modal-season-list article {
+  background: rgba(255, 255, 255, 0.025);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Highlights the selected historical season in amber. */
+.stats-modal-season-list article.active-modal-season {
+  background: rgba(250, 204, 21, 0.1);
+  border-color: rgba(250, 204, 21, 0.45);
+}
+
+/* Makes room for yards and touchdowns in each historical season row. */
+.stats-modal-season-list article {
+  grid-template-columns:
+    0.7fr repeat(7, minmax(0, 1fr));
+}
+
+/* Keeps the expanded season rows readable on medium screens. */
+@media (max-width: 900px) {
+  .stats-modal-season-list article {
+    grid-template-columns:
+      repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Stacks historical values cleanly on mobile screens. */
+@media (max-width: 600px) {
+  .stats-modal-season-list article {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}

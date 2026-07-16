@@ -1,11 +1,26 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
 import DraftRoom from "./components/DraftRoom";
 import LeaguePanel from "./components/LeaguePanel";
+import StatsPage from "./components/StatsPage";
 import "./App.css";
 
-type ApiStatus = "checking" | "healthy" | "offline";
-type AppPage = "home" | "draft";
+type ApiStatus =
+  | "checking"
+  | "healthy"
+  | "offline";
 
+type AppPage =
+  | "home"
+  | "draft"
+  | "stats";
+
+
+/**
+ * Displays the ThunderDraft homepage, draft room, and stats page.
+ */
 function App() {
   const [apiStatus, setApiStatus] =
     useState<ApiStatus>("checking");
@@ -13,17 +28,26 @@ function App() {
   const [currentPage, setCurrentPage] =
     useState<AppPage>("home");
 
+  /*
+   * Checks whether the ThunderDraft backend is available.
+   */
   useEffect(() => {
     fetch("/api/health")
       .then((response) => {
         if (!response.ok) {
-          throw new Error("API request failed");
+          throw new Error(
+            "API request failed",
+          );
         }
 
         return response.json();
       })
-      .then(() => setApiStatus("healthy"))
-      .catch(() => setApiStatus("offline"));
+      .then(() => {
+        setApiStatus("healthy");
+      })
+      .catch(() => {
+        setApiStatus("offline");
+      });
   }, []);
 
   const statusText = {
@@ -37,15 +61,20 @@ function App() {
       <header className="topbar">
         <button
           className="brand brand-button"
-          onClick={() => setCurrentPage("home")}
+          onClick={() =>
+            setCurrentPage("home")
+          }
           type="button"
         >
-          <div className="brand-icon">⚡</div>
+          <div className="brand-icon">
+            ⚡
+          </div>
 
           <div>
             <p className="eyebrow">
               ThunderHub Sports Lab
             </p>
+
             <h1>ThunderDraft</h1>
           </div>
         </button>
@@ -54,21 +83,51 @@ function App() {
           {currentPage === "draft" && (
             <button
               className="secondary-button compact-button"
-              onClick={() => setCurrentPage("home")}
+              onClick={() =>
+                setCurrentPage("stats")
+              }
+              type="button"
+            >
+              Player Stats
+            </button>
+          )}
+
+          {currentPage === "stats" && (
+            <button
+              className="secondary-button compact-button"
+              onClick={() =>
+                setCurrentPage("draft")
+              }
+              type="button"
+            >
+              Draft Room
+            </button>
+          )}
+
+          {currentPage !== "home" && (
+            <button
+              className="secondary-button compact-button"
+              onClick={() =>
+                setCurrentPage("home")
+              }
               type="button"
             >
               Back to Home
             </button>
           )}
 
-          <div className={`status-pill status-${apiStatus}`}>
+          <div
+            className={
+              `status-pill status-${apiStatus}`
+            }
+          >
             <span className="status-dot" />
             {statusText}
           </div>
         </div>
       </header>
 
-      {currentPage === "home" ? (
+      {currentPage === "home" && (
         <>
           <section className="hero">
             <div className="hero-copy">
@@ -83,16 +142,18 @@ function App() {
               </h2>
 
               <p className="hero-description">
-                Track every selection, react to positional
-                runs, and build the strongest possible
-                half-PPR roster regardless of what the other
-                eleven teams decide.
+                Track every selection, react to
+                positional runs, and build the strongest
+                possible half-PPR roster regardless of
+                what the other eleven teams decide.
               </p>
 
               <div className="button-row">
                 <button
                   className="primary-button"
-                  onClick={() => setCurrentPage("draft")}
+                  onClick={() =>
+                    setCurrentPage("draft")
+                  }
                   type="button"
                 >
                   Enter Draft Room
@@ -100,9 +161,12 @@ function App() {
 
                 <button
                   className="secondary-button"
+                  onClick={() =>
+                    setCurrentPage("stats")
+                  }
                   type="button"
                 >
-                  Import Rankings
+                  View Player Stats
                 </button>
               </div>
             </div>
@@ -115,31 +179,61 @@ function App() {
               <h3>Neutral Strategy Mode</h3>
 
               <div className="player-row">
-                <span className="rank">01</span>
-                <strong>12-team league</strong>
-                <span className="position">12</span>
+                <span className="rank">
+                  01
+                </span>
+
+                <strong>
+                  12-team league
+                </strong>
+
+                <span className="position">
+                  12
+                </span>
               </div>
 
               <div className="player-row">
-                <span className="rank">02</span>
-                <strong>Half-PPR scoring</strong>
-                <span className="position">0.5</span>
+                <span className="rank">
+                  02
+                </span>
+
+                <strong>
+                  Half-PPR scoring
+                </strong>
+
+                <span className="position">
+                  0.5
+                </span>
               </div>
 
               <div className="player-row">
-                <span className="rank">03</span>
-                <strong>Draft position</strong>
-                <span className="position">TBD</span>
+                <span className="rank">
+                  03
+                </span>
+
+                <strong>
+                  Draft position
+                </strong>
+
+                <span className="position">
+                  TBD
+                </span>
               </div>
             </div>
           </section>
 
           <LeaguePanel />
         </>
-      ) : (
+      )}
+
+      {currentPage === "draft" && (
         <div className="draft-page">
           <DraftRoom />
         </div>
+      )}
+
+      {currentPage === "stats" && (
+        <StatsPage />
       )}
     </main>
   );

@@ -23,6 +23,7 @@ class NflPlayer(BaseModel):
     depthChartOrder: int | None = None
     searchRank: int | None = None
     espnId: str | None = None
+    gsisId: str | None = None
     imageUrl: str | None = None
     fallbackImageUrl: str | None = None
 
