@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
+import LeaguePanel from "./components/LeaguePanel";
 import "./App.css";
 
 type ApiStatus = "checking" | "healthy" | "offline";
 
 function App() {
-  const [apiStatus, setApiStatus] = useState<ApiStatus>("checking");
+  const [apiStatus, setApiStatus] =
+    useState<ApiStatus>("checking");
 
   useEffect(() => {
-    const apiUrl = "/api/health";
-
-    fetch(apiUrl)
+    fetch("/api/health")
       .then((response) => {
         if (!response.ok) {
           throw new Error("API request failed");
@@ -47,7 +47,9 @@ function App() {
 
       <section className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">Fantasy football draft intelligence</p>
+          <p className="eyebrow">
+            Fantasy football draft intelligence
+          </p>
 
           <h2>
             Build your rankings.
@@ -56,39 +58,47 @@ function App() {
           </h2>
 
           <p className="hero-description">
-            Import player data, customize your strategy, track drafted players,
-            and always see the best option available.
+            Track every selection, react to positional runs,
+            and build the strongest possible half-PPR roster
+            regardless of what the other eleven teams decide.
           </p>
 
           <div className="button-row">
-            <button className="primary-button">Enter Draft Room</button>
-            <button className="secondary-button">Import Rankings</button>
+            <button className="primary-button">
+              Enter Draft Room
+            </button>
+
+            <button className="secondary-button">
+              Import Rankings
+            </button>
           </div>
         </div>
 
         <div className="preview-card">
-          <p className="eyebrow">Coming next</p>
-          <h3>Draft Board</h3>
+          <p className="eyebrow">Draft assistant status</p>
+          <h3>Neutral Strategy Mode</h3>
 
           <div className="player-row">
             <span className="rank">01</span>
-            <strong>Overall rankings</strong>
-            <span className="position">ALL</span>
+            <strong>12-team league</strong>
+            <span className="position">12</span>
           </div>
 
           <div className="player-row">
             <span className="rank">02</span>
-            <strong>Position filters</strong>
-            <span className="position">RB</span>
+            <strong>Half-PPR scoring</strong>
+            <span className="position">0.5</span>
           </div>
 
           <div className="player-row">
             <span className="rank">03</span>
-            <strong>Strategy adjustments</strong>
-            <span className="position">WR</span>
+            <strong>Draft position</strong>
+            <span className="position">TBD</span>
           </div>
         </div>
       </section>
+
+      <LeaguePanel />
     </main>
   );
 }
