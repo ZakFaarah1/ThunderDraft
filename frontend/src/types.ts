@@ -33,6 +33,7 @@ export interface Player {
   adp: number | null;
   projectedPoints: number | null;
   byeWeek: number | null;
+  imageUrl: string | null;
 }
 
 export interface DraftPick {

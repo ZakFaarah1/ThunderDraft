@@ -1,66 +1,145 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { fantasyTeams } from "../data/league";
-import type { Position } from "../types";
+import type { Player } from "../types";
+import { getFantasyTeamForPick } from "../utils/draft";
+import DraftOrderSetup from "./DraftOrderSetup";
+import MyRoster from "./MyRoster";
+import PlayerBoard from "./PlayerBoard";
 
-interface ManualDraftPick {
+interface RecordedDraftPick {
   id: string;
   overallPick: number;
   fantasyTeamId: string;
-  playerName: string;
-  position: Position;
-  nflTeam: string;
+  player: Player;
 }
 
-const positions: Position[] = [
-  "QB",
-  "RB",
-  "WR",
-  "TE",
-  "K",
-  "DST",
-];
+const draftOrderStorageKey = "thunderdraft-draft-order";
+
+function loadSavedDraftOrder(): string[] {
+  try {
+    const savedOrder = localStorage.getItem(
+      draftOrderStorageKey,
+    );
+
+    if (!savedOrder) {
+      return [];
+    }
+
+    const parsedOrder: unknown = JSON.parse(savedOrder);
+
+    if (
+      !Array.isArray(parsedOrder) ||
+      parsedOrder.length !== fantasyTeams.length
+    ) {
+      return [];
+    }
+
+    const validTeamIds = new Set(
+      fantasyTeams.map((team) => team.id),
+    );
+
+    const allTeamsAreValid = parsedOrder.every(
+      (teamId) =>
+        typeof teamId === "string" &&
+        validTeamIds.has(teamId),
+    );
+
+    const containsEveryTeam =
+      new Set(parsedOrder).size === fantasyTeams.length;
+
+    if (!allTeamsAreValid || !containsEveryTeam) {
+      return [];
+    }
+
+    return parsedOrder;
+  } catch {
+    return [];
+  }
+}
 
 function DraftRoom() {
-  const [draftPicks, setDraftPicks] = useState<ManualDraftPick[]>(
-    [],
+  const [draftPicks, setDraftPicks] = useState<
+    RecordedDraftPick[]
+  >([]);
+
+  const [draftOrder, setDraftOrder] = useState<string[]>(
+    loadSavedDraftOrder,
   );
 
-  const [fantasyTeamId, setFantasyTeamId] = useState(
-    fantasyTeams[0].id,
-  );
+  const [
+    showDraftOrderSetup,
+    setShowDraftOrderSetup,
+  ] = useState(false);
 
-  const [playerName, setPlayerName] = useState("");
-  const [position, setPosition] = useState<Position>("RB");
-  const [nflTeam, setNflTeam] = useState("");
+  const [
+    manualFantasyTeamId,
+    setManualFantasyTeamId,
+  ] = useState(fantasyTeams[0].id);
 
   const nextOverallPick = draftPicks.length + 1;
 
-  function addDraftPick(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const hasDraftOrder =
+    draftOrder.length === fantasyTeams.length &&
+    new Set(draftOrder).size === fantasyTeams.length;
 
-    const trimmedPlayerName = playerName.trim();
-    const trimmedNflTeam = nflTeam.trim().toUpperCase();
+  const currentDraftSlot = hasDraftOrder
+    ? getFantasyTeamForPick(
+        nextOverallPick,
+        fantasyTeams.length,
+        "snake",
+      )
+    : null;
 
-    if (!trimmedPlayerName) {
-      return;
-    }
+  const activeFantasyTeamId =
+    currentDraftSlot !== null
+      ? draftOrder[currentDraftSlot - 1]
+      : manualFantasyTeamId;
 
-    const newPick: ManualDraftPick = {
-      id: `${Date.now()}-${nextOverallPick}`,
+  const activeFantasyTeam = fantasyTeams.find(
+    (team) => team.id === activeFantasyTeamId,
+  );
+
+  const isUserOnClock =
+    activeFantasyTeam?.isUser === true;
+
+  const draftedPlayerIds = draftPicks.map(
+    (pick) => pick.player.id,
+  );
+
+  const userFantasyTeamId = fantasyTeams.find(
+    (team) => team.isUser,
+  )?.id;
+
+  const userDraftedPlayers = draftPicks
+    .filter(
+      (pick) =>
+        pick.fantasyTeamId === userFantasyTeamId,
+    )
+    .map((pick) => pick.player);
+
+  function saveDraftOrder(teamIds: string[]) {
+    setDraftOrder(teamIds);
+
+    localStorage.setItem(
+      draftOrderStorageKey,
+      JSON.stringify(teamIds),
+    );
+
+    setShowDraftOrderSetup(false);
+  }
+
+  function draftPlayer(player: Player) {
+    const newPick: RecordedDraftPick = {
+      id: `${Date.now()}-${player.id}`,
       overallPick: nextOverallPick,
-      fantasyTeamId,
-      playerName: trimmedPlayerName,
-      position,
-      nflTeam: trimmedNflTeam,
+      fantasyTeamId: activeFantasyTeamId,
+      player,
     };
 
     setDraftPicks((currentPicks) => [
       ...currentPicks,
       newPick,
     ]);
-
-    setPlayerName("");
-    setNflTeam("");
   }
 
   function undoLastPick() {
@@ -70,14 +149,37 @@ function DraftRoom() {
   }
 
   return (
-    <section className="draft-room">
+    <section
+      className={`draft-room ${
+        isUserOnClock ? "user-on-clock" : ""
+      }`}
+    >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Live draft control</p>
+          <p className="eyebrow">
+            Live draft control
+          </p>
+
           <h2>Draft Room</h2>
         </div>
 
         <div className="draft-room-actions">
+          <button
+            className="secondary-button compact-button"
+            onClick={() =>
+              setShowDraftOrderSetup(
+                (currentValue) => !currentValue,
+              )
+            }
+            type="button"
+          >
+            {showDraftOrderSetup
+              ? "Close Order Setup"
+              : hasDraftOrder
+                ? "Edit Draft Order"
+                : "Set Draft Order"}
+          </button>
+
           <span className="current-pick-badge">
             Pick {nextOverallPick}
           </span>
@@ -93,146 +195,178 @@ function DraftRoom() {
         </div>
       </div>
 
-      <div className="draft-room-layout">
-        <form className="pick-entry-card" onSubmit={addDraftPick}>
-          <div>
-            <p className="eyebrow">Record selection</p>
-            <h3>Pick {nextOverallPick}</h3>
-          </div>
+      {showDraftOrderSetup && (
+        <DraftOrderSetup
+          initialOrder={draftOrder}
+          onSave={saveDraftOrder}
+        />
+      )}
 
-          <label className="field-group">
-            <span>League member</span>
+      <div className="on-clock-card">
+        <div className="on-clock-manager">
+          <span className="on-clock-emoji">
+            {activeFantasyTeam?.emoji ?? "🏈"}
+          </span>
+
+          <div>
+            <p className="eyebrow">
+              {hasDraftOrder
+                ? "Currently on the clock"
+                : "Currently recording for"}
+            </p>
+
+            <strong>
+              {activeFantasyTeam?.name ??
+                "Unknown manager"}
+            </strong>
+          </div>
+        </div>
+
+        {hasDraftOrder ? (
+          <div className="automatic-order-status">
+            <span>Automatic snake order</span>
+
+            <strong>
+              Draft slot {currentDraftSlot} · Pick{" "}
+              {nextOverallPick}
+            </strong>
+          </div>
+        ) : (
+          <label className="field-group manager-picker">
+            <span>Select league member</span>
 
             <select
-              value={fantasyTeamId}
               onChange={(event) =>
-                setFantasyTeamId(event.target.value)
+                setManualFantasyTeamId(
+                  event.target.value,
+                )
               }
+              value={manualFantasyTeamId}
             >
               {fantasyTeams.map((team) => (
-                <option key={team.id} value={team.id}>
+                <option
+                  key={team.id}
+                  value={team.id}
+                >
                   {team.emoji} {team.name}
                   {team.isUser ? " — You" : ""}
                 </option>
               ))}
             </select>
           </label>
+        )}
+      </div>
 
-          <label className="field-group">
-            <span>Player name</span>
+      {isUserOnClock && (
+        <div className="your-turn-banner">
+          <div className="your-turn-message">
+            <span className="your-turn-pulse" />
 
-            <input
-              onChange={(event) =>
-                setPlayerName(event.target.value)
-              }
-              placeholder="Example: Justin Jefferson"
-              required
-              type="text"
-              value={playerName}
-            />
-          </label>
-
-          <div className="pick-form-row">
-            <label className="field-group">
-              <span>Position</span>
-
-              <select
-                value={position}
-                onChange={(event) =>
-                  setPosition(event.target.value as Position)
-                }
-              >
-                {positions.map((playerPosition) => (
-                  <option
-                    key={playerPosition}
-                    value={playerPosition}
-                  >
-                    {playerPosition}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field-group">
-              <span>NFL team</span>
-
-              <input
-                maxLength={3}
-                onChange={(event) =>
-                  setNflTeam(event.target.value)
-                }
-                placeholder="MIN"
-                type="text"
-                value={nflTeam}
-              />
-            </label>
-          </div>
-
-          <button className="primary-button" type="submit">
-            Add Pick
-          </button>
-        </form>
-
-        <div className="draft-history-card">
-          <div className="draft-history-heading">
             <div>
-              <p className="eyebrow">Selections</p>
-              <h3>Draft History</h3>
-            </div>
+              <p className="eyebrow">
+                You are on the clock
+              </p>
 
-            <span>{draftPicks.length} recorded</span>
+              <strong>
+                Thunder ⚡ — build your team
+              </strong>
+            </div>
           </div>
 
-          {draftPicks.length === 0 ? (
-            <div className="draft-empty-state">
-              <strong>No picks recorded yet</strong>
+          <span>
+            Recommendations are ready
+          </span>
+        </div>
+      )}
+
+      <div className="draft-room-layout">
+        <PlayerBoard
+          draftedPlayerIds={draftedPlayerIds}
+          isUserOnClock={isUserOnClock}
+          onDraftPlayer={draftPlayer}
+        />
+
+        <div className="draft-sidebar">
+          <aside className="draft-history-card">
+            <div className="draft-history-heading">
+              <div>
+                <p className="eyebrow">
+                  Selections
+                </p>
+
+                <h3>Draft History</h3>
+              </div>
+
               <span>
-                Use the form to enter each league member’s
-                selection.
+                {draftPicks.length} recorded
               </span>
             </div>
-          ) : (
-            <div className="draft-pick-list">
-              {[...draftPicks].reverse().map((pick) => {
-                const fantasyTeam = fantasyTeams.find(
-                  (team) => team.id === pick.fantasyTeamId,
-                );
 
-                return (
-                  <article
-                    className={`draft-pick ${
-                      fantasyTeam?.isUser
-                        ? "user-draft-pick"
-                        : ""
-                    }`}
-                    key={pick.id}
-                  >
-                    <span className="draft-pick-number">
-                      {pick.overallPick}
-                    </span>
+            {draftPicks.length === 0 ? (
+              <div className="draft-empty-state">
+                <strong>
+                  No picks recorded yet
+                </strong>
 
-                    <div className="draft-pick-player">
-                      <strong>{pick.playerName}</strong>
+                <span>
+                  Select a player from the board to
+                  record the next pick.
+                </span>
+              </div>
+            ) : (
+              <div className="draft-pick-list">
+                {[...draftPicks]
+                  .reverse()
+                  .map((pick) => {
+                    const fantasyTeam =
+                      fantasyTeams.find(
+                        (team) =>
+                          team.id ===
+                          pick.fantasyTeamId,
+                      );
 
-                      <span>
-                        {pick.position}
-                        {pick.nflTeam
-                          ? ` · ${pick.nflTeam}`
-                          : ""}
-                      </span>
-                    </div>
+                    return (
+                      <article
+                        className={`draft-pick ${
+                          fantasyTeam?.isUser
+                            ? "user-draft-pick"
+                            : ""
+                        }`}
+                        key={pick.id}
+                      >
+                        <span className="draft-pick-number">
+                          {pick.overallPick}
+                        </span>
 
-                    <div className="draft-pick-manager">
-                      <span>{fantasyTeam?.emoji}</span>
-                      <strong>
-                        {fantasyTeam?.name ?? "Unknown"}
-                      </strong>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
+                        <div className="draft-pick-player">
+                          <strong>
+                            {pick.player.name}
+                          </strong>
+
+                          <span>
+                            {pick.player.position} ·{" "}
+                            {pick.player.nflTeam}
+                          </span>
+                        </div>
+
+                        <div className="draft-pick-manager">
+                          <span>
+                            {fantasyTeam?.emoji}
+                          </span>
+
+                          <strong>
+                            {fantasyTeam?.name ??
+                              "Unknown"}
+                          </strong>
+                        </div>
+                      </article>
+                    );
+                  })}
+              </div>
+            )}
+          </aside>
+
+          <MyRoster players={userDraftedPlayers} />
         </div>
       </div>
     </section>

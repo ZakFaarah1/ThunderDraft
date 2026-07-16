@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
+import DraftRoom from "./components/DraftRoom";
 import LeaguePanel from "./components/LeaguePanel";
 import "./App.css";
 
 type ApiStatus = "checking" | "healthy" | "offline";
+type AppPage = "home" | "draft";
 
 function App() {
   const [apiStatus, setApiStatus] =
     useState<ApiStatus>("checking");
+
+  const [currentPage, setCurrentPage] =
+    useState<AppPage>("home");
 
   useEffect(() => {
     fetch("/api/health")
@@ -30,75 +35,112 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div className="brand">
+        <button
+          className="brand brand-button"
+          onClick={() => setCurrentPage("home")}
+          type="button"
+        >
           <div className="brand-icon">⚡</div>
 
           <div>
-            <p className="eyebrow">ThunderHub Sports Lab</p>
+            <p className="eyebrow">
+              ThunderHub Sports Lab
+            </p>
             <h1>ThunderDraft</h1>
           </div>
-        </div>
+        </button>
 
-        <div className={`status-pill status-${apiStatus}`}>
-          <span className="status-dot" />
-          {statusText}
+        <div className="topbar-actions">
+          {currentPage === "draft" && (
+            <button
+              className="secondary-button compact-button"
+              onClick={() => setCurrentPage("home")}
+              type="button"
+            >
+              Back to Home
+            </button>
+          )}
+
+          <div className={`status-pill status-${apiStatus}`}>
+            <span className="status-dot" />
+            {statusText}
+          </div>
         </div>
       </header>
 
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">
-            Fantasy football draft intelligence
-          </p>
+      {currentPage === "home" ? (
+        <>
+          <section className="hero">
+            <div className="hero-copy">
+              <p className="eyebrow">
+                Fantasy football draft intelligence
+              </p>
 
-          <h2>
-            Build your rankings.
-            <br />
-            Control your draft.
-          </h2>
+              <h2>
+                Build your rankings.
+                <br />
+                Control your draft.
+              </h2>
 
-          <p className="hero-description">
-            Track every selection, react to positional runs,
-            and build the strongest possible half-PPR roster
-            regardless of what the other eleven teams decide.
-          </p>
+              <p className="hero-description">
+                Track every selection, react to positional
+                runs, and build the strongest possible
+                half-PPR roster regardless of what the other
+                eleven teams decide.
+              </p>
 
-          <div className="button-row">
-            <button className="primary-button">
-              Enter Draft Room
-            </button>
+              <div className="button-row">
+                <button
+                  className="primary-button"
+                  onClick={() => setCurrentPage("draft")}
+                  type="button"
+                >
+                  Enter Draft Room
+                </button>
 
-            <button className="secondary-button">
-              Import Rankings
-            </button>
-          </div>
+                <button
+                  className="secondary-button"
+                  type="button"
+                >
+                  Import Rankings
+                </button>
+              </div>
+            </div>
+
+            <div className="preview-card">
+              <p className="eyebrow">
+                Draft assistant status
+              </p>
+
+              <h3>Neutral Strategy Mode</h3>
+
+              <div className="player-row">
+                <span className="rank">01</span>
+                <strong>12-team league</strong>
+                <span className="position">12</span>
+              </div>
+
+              <div className="player-row">
+                <span className="rank">02</span>
+                <strong>Half-PPR scoring</strong>
+                <span className="position">0.5</span>
+              </div>
+
+              <div className="player-row">
+                <span className="rank">03</span>
+                <strong>Draft position</strong>
+                <span className="position">TBD</span>
+              </div>
+            </div>
+          </section>
+
+          <LeaguePanel />
+        </>
+      ) : (
+        <div className="draft-page">
+          <DraftRoom />
         </div>
-
-        <div className="preview-card">
-          <p className="eyebrow">Draft assistant status</p>
-          <h3>Neutral Strategy Mode</h3>
-
-          <div className="player-row">
-            <span className="rank">01</span>
-            <strong>12-team league</strong>
-            <span className="position">12</span>
-          </div>
-
-          <div className="player-row">
-            <span className="rank">02</span>
-            <strong>Half-PPR scoring</strong>
-            <span className="position">0.5</span>
-          </div>
-
-          <div className="player-row">
-            <span className="rank">03</span>
-            <strong>Draft position</strong>
-            <span className="position">TBD</span>
-          </div>
-        </div>
-      </section>
-
-      <LeaguePanel />
+      )}
     </main>
   );
 }
