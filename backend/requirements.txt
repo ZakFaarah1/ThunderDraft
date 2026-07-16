@@ -1,2 +1,8 @@
+# FastAPI web framework.
 fastapi
+
+# Asynchronous HTTP client used to retrieve NFL data.
+httpx
+
+# ASGI server used to run the backend.
 uvicorn[standard]
