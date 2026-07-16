@@ -1,3 +1,5 @@
+import { recommendationWeights } from "../config/recommendationWeights";
+
 import type {
   Player,
   Position,
@@ -34,7 +36,7 @@ const depthTargets: Record<Position, number> = {
 };
 
 /**
- * Counts how many drafted players the user has at each position.
+ * Counts the user's drafted players at each position.
  */
 function countPlayersByPosition(
   players: Player[],
@@ -56,7 +58,7 @@ function countPlayersByPosition(
 }
 
 /**
- * Scores a player based on the user's current roster needs.
+ * Scores a player based on open starters and roster depth.
  */
 function getRosterNeedScore(
   player: Player,
@@ -80,14 +82,18 @@ function getRosterNeedScore(
       player.position === "RB" ||
       player.position === "WR"
     ) {
-      score += 28;
+      score +=
+        recommendationWeights.rbWrStarterNeedBonus;
     } else if (
       player.position === "QB" ||
       player.position === "TE"
     ) {
-      score += 22;
+      score +=
+        recommendationWeights.qbTeStarterNeedBonus;
     } else {
-      score += 6;
+      score +=
+        recommendationWeights
+          .kickerDefenseStarterNeedBonus;
     }
 
     reasons.push(
@@ -97,30 +103,43 @@ function getRosterNeedScore(
     currentPositionCount < depthTarget &&
     ["RB", "WR", "TE"].includes(player.position)
   ) {
-    score += 10;
-    reasons.push("Adds useful FLEX or bench depth");
+    score += recommendationWeights.flexDepthBonus;
+
+    reasons.push(
+      "Adds useful FLEX or bench depth",
+    );
   }
 
   if (
     player.position === "QB" &&
     currentPositionCount >= 1
   ) {
-    score -= 12;
+    score -=
+      recommendationWeights
+        .duplicateQuarterbackPenalty;
   }
 
   if (
     player.position === "TE" &&
     currentPositionCount >= 2
   ) {
-    score -= 10;
+    score -=
+      recommendationWeights.extraTightEndPenalty;
   }
 
-  if (
-    (player.position === "K" ||
-      player.position === "DST") &&
-    totalUserPicks < 10
-  ) {
-    score -= 30;
+  const isKickerOrDefense =
+    player.position === "K" ||
+    player.position === "DST";
+
+  const isEarlyDraft =
+    totalUserPicks <
+    recommendationWeights
+      .earlyKickerDefensePickThreshold;
+
+  if (isKickerOrDefense && isEarlyDraft) {
+    score -=
+      recommendationWeights
+        .earlyKickerDefensePenalty;
   }
 
   return {
@@ -130,7 +149,7 @@ function getRosterNeedScore(
 }
 
 /**
- * Scores whether a player is likely to survive until the next turn.
+ * Scores whether a player may disappear before the next turn.
  */
 function getNextTurnUrgencyScore(
   player: Player,
@@ -159,30 +178,58 @@ function getNextTurnUrgencyScore(
   let score = 0;
   const reasons: string[] = [];
 
-  if (expectedDraftPick <= context.currentOverallPick) {
-    score = 18;
-    reasons.push("Falling past expected draft range");
+  if (
+    expectedDraftPick <=
+    context.currentOverallPick
+  ) {
+    score =
+      recommendationWeights.fallingPlayerBonus;
+
+    reasons.push(
+      "Falling past expected draft range",
+    );
   } else if (expectedDraftPick <= nextUserPick) {
     const distanceInsideWindow =
       nextUserPick - expectedDraftPick;
 
     score = Math.min(
-      22,
-      10 + distanceInsideWindow * 0.75,
+      recommendationWeights.maximumNextTurnBonus,
+      recommendationWeights.nextTurnBaseBonus +
+        distanceInsideWindow *
+          recommendationWeights
+            .nextTurnDistanceMultiplier,
     );
 
-    reasons.push("Unlikely to reach your next turn");
-  } else if (expectedDraftPick <= nextUserPick + 3) {
-    score = 4;
-    reasons.push("Could be gone before your next turn");
+    reasons.push(
+      "Unlikely to reach your next turn",
+    );
+  } else if (
+    expectedDraftPick <=
+    nextUserPick +
+      recommendationWeights.nearNextTurnRange
+  ) {
+    score =
+      recommendationWeights.nearNextTurnBonus;
+
+    reasons.push(
+      "Could be gone before your next turn",
+    );
   }
 
   /*
-   * Prevents urgency from heavily boosting a player whose
-   * ranking is far below the current draft range.
+   * Prevents low-ranked players from receiving an
+   * excessive urgency bonus.
    */
-  if (player.overallRank > nextUserPick + 8) {
-    score = Math.min(score, 6);
+  if (
+    player.overallRank >
+    nextUserPick +
+      recommendationWeights
+        .lowRankUrgencyBuffer
+  ) {
+    score = Math.min(
+      score,
+      recommendationWeights.lowRankUrgencyCap,
+    );
   }
 
   return {
@@ -209,7 +256,8 @@ function getPositionRunScore(
   }
 
   /*
-   * Kicker and defense runs should not encourage early reaches.
+   * Kicker and defense runs should not encourage
+   * early reaches.
    */
   if (
     player.position === "K" ||
@@ -222,39 +270,62 @@ function getPositionRunScore(
   }
 
   const recentDraftWindow =
-    context.recentDraftedPlayers.slice(-6);
+    context.recentDraftedPlayers.slice(
+      -recommendationWeights
+        .recentDraftWindowSize,
+    );
 
   const recentPositionSelections =
     recentDraftWindow.filter(
       (draftedPlayer) =>
-        draftedPlayer.position === player.position,
+        draftedPlayer.position ===
+        player.position,
     ).length;
 
-  if (recentPositionSelections >= 4) {
+  if (
+    recentPositionSelections >=
+    recommendationWeights
+      .acceleratingRunMinimum
+  ) {
     return {
-      score: 10,
+      score:
+        recommendationWeights
+          .acceleratingRunBonus,
       reasons: [
         `${player.position} run is accelerating`,
       ],
     };
   }
 
-  if (recentPositionSelections === 3) {
+  if (
+    recentPositionSelections >=
+    recommendationWeights.developingRunMinimum
+  ) {
     return {
-      score: 7,
+      score:
+        recommendationWeights
+          .developingRunBonus,
       reasons: [
         `${player.position} run developing`,
       ],
     };
   }
 
-  if (
-    recentPositionSelections === 2 &&
+  const hasLongWait =
     context.picksUntilNextTurn !== null &&
-    context.picksUntilNextTurn >= 8
+    context.picksUntilNextTurn >=
+      recommendationWeights
+        .risingDemandPickThreshold;
+
+  if (
+    recentPositionSelections >=
+      recommendationWeights.risingDemandMinimum &&
+    hasLongWait
   ) {
     return {
-      score: 4,
+      score:
+        recommendationWeights
+          .risingDemandBonus,
       reasons: [
         `${player.position} demand is rising`,
       ],
@@ -268,32 +339,35 @@ function getPositionRunScore(
 }
 
 /**
- * Scores players who are followed by a positional tier drop.
+ * Scores players followed by a major positional drop.
  */
 function getTierDropScore(
   player: Player,
   availablePlayers: Player[],
 ): ScoreResult {
-  const laterPositionPlayers = availablePlayers
-    .filter(
-      (availablePlayer) =>
-        availablePlayer.position === player.position &&
-        availablePlayer.id !== player.id &&
-        availablePlayer.overallRank >
-          player.overallRank,
-    )
-    .sort(
-      (firstPlayer, secondPlayer) =>
-        firstPlayer.overallRank -
-        secondPlayer.overallRank,
-    );
+  const laterPositionPlayers =
+    availablePlayers
+      .filter(
+        (availablePlayer) =>
+          availablePlayer.position ===
+            player.position &&
+          availablePlayer.id !== player.id &&
+          availablePlayer.overallRank >
+            player.overallRank,
+      )
+      .sort(
+        (firstPlayer, secondPlayer) =>
+          firstPlayer.overallRank -
+          secondPlayer.overallRank,
+      );
 
   const nextPositionPlayer =
     laterPositionPlayers[0];
 
   if (!nextPositionPlayer) {
     return {
-      score: 14,
+      score:
+        recommendationWeights.lastPositionBonus,
       reasons: [
         `Last available ${player.position} option`,
       ],
@@ -310,8 +384,13 @@ function getTierDropScore(
   if (hasTierDrop) {
     return {
       score: Math.min(
-        16,
-        10 + rankDrop * 0.5,
+        recommendationWeights
+          .maximumTierDropBonus,
+        recommendationWeights
+          .tierDropBaseBonus +
+          rankDrop *
+            recommendationWeights
+              .tierDropRankMultiplier,
       ),
       reasons: [
         `Last ${player.position} in Tier ${player.tier}`,
@@ -319,11 +398,17 @@ function getTierDropScore(
     };
   }
 
-  if (rankDrop >= 8) {
+  if (
+    rankDrop >=
+    recommendationWeights.majorRankDropMinimum
+  ) {
     return {
       score: Math.min(
-        12,
-        rankDrop * 0.75,
+        recommendationWeights
+          .maximumMajorRankDropBonus,
+        rankDrop *
+          recommendationWeights
+            .majorRankDropMultiplier,
       ),
       reasons: [
         `Major ${player.position} value drop after this pick`,
@@ -353,7 +438,10 @@ function getMarketValueScore(
   const rankingAdvantage =
     player.adp - player.overallRank;
 
-  if (rankingAdvantage < 4) {
+  if (
+    rankingAdvantage <
+    recommendationWeights.marketAdvantageMinimum
+  ) {
     return {
       score: 0,
       reasons: [],
@@ -362,15 +450,67 @@ function getMarketValueScore(
 
   return {
     score: Math.min(
-      10,
-      rankingAdvantage * 0.5,
+      recommendationWeights
+        .maximumMarketAdvantageBonus,
+      rankingAdvantage *
+        recommendationWeights
+          .marketAdvantageMultiplier,
     ),
-    reasons: ["Ranks ahead of market ADP"],
+    reasons: [
+      "Ranks ahead of market ADP",
+    ],
   };
 }
 
 /**
- * Ranks players using value, roster need, timing, and draft trends.
+ * Calculates the base score from overall rank, tier, and
+ * positional rank.
+ */
+function getBasePlayerScore(
+  player: Player,
+): number {
+  const overallRankScore =
+    recommendationWeights.baseScore -
+    player.overallRank *
+      recommendationWeights.overallRankPenalty;
+
+  const tierBonus = Math.max(
+    0,
+    recommendationWeights.maximumTierBonus -
+      (player.tier - 1) *
+        recommendationWeights
+          .tierBonusReduction,
+  );
+
+  const positionRankBonus = Math.max(
+    0,
+    recommendationWeights
+      .maximumPositionRankBonus -
+      player.positionRank,
+  );
+
+  return (
+    overallRankScore +
+    tierBonus +
+    positionRankBonus
+  );
+}
+
+/**
+ * Adds a score result and its reasons to a recommendation.
+ */
+function applyScoreResult(
+  currentScore: number,
+  reasons: string[],
+  result: ScoreResult,
+): number {
+  reasons.push(...result.reasons);
+
+  return currentScore + result.score;
+}
+
+/**
+ * Ranks players using value, need, timing, tiers, and trends.
  */
 export function getRecommendations(
   availablePlayers: Player[],
@@ -378,72 +518,71 @@ export function getRecommendations(
   limit = 5,
   context?: RecommendationContext,
 ): Recommendation[] {
-  const positionCounts = countPlayersByPosition(
-    userDraftedPlayers,
-  );
+  const positionCounts =
+    countPlayersByPosition(
+      userDraftedPlayers,
+    );
 
   return availablePlayers
     .map((player): Recommendation => {
       const reasons: string[] = [];
 
-      /*
-       * Better overall ranks receive a higher base score.
-       */
-      let score = 120 - player.overallRank * 2;
+      let score =
+        getBasePlayerScore(player);
 
-      /*
-       * Players in stronger tiers receive an additional boost.
-       */
-      const tierBonus = Math.max(
-        0,
-        18 - (player.tier - 1) * 5,
+      const rosterNeed =
+        getRosterNeedScore(
+          player,
+          positionCounts,
+          userDraftedPlayers.length,
+        );
+
+      score = applyScoreResult(
+        score,
+        reasons,
+        rosterNeed,
       );
 
-      score += tierBonus;
+      const urgency =
+        getNextTurnUrgencyScore(
+          player,
+          context,
+        );
 
-      /*
-       * Strong positional rankings receive a smaller bonus.
-       */
-      score += Math.max(
-        0,
-        10 - player.positionRank,
+      score = applyScoreResult(
+        score,
+        reasons,
+        urgency,
       );
 
-      const rosterNeed = getRosterNeedScore(
-        player,
-        positionCounts,
-        userDraftedPlayers.length,
+      const positionRun =
+        getPositionRunScore(
+          player,
+          context,
+        );
+
+      score = applyScoreResult(
+        score,
+        reasons,
+        positionRun,
       );
 
-      score += rosterNeed.score;
-      reasons.push(...rosterNeed.reasons);
+      const tierDrop =
+        getTierDropScore(
+          player,
+          availablePlayers,
+        );
 
-      const urgency = getNextTurnUrgencyScore(
-        player,
-        context,
+      score = applyScoreResult(
+        score,
+        reasons,
+        tierDrop,
       );
-
-      score += urgency.score;
-      reasons.push(...urgency.reasons);
-
-      const positionRun = getPositionRunScore(
-        player,
-        context,
-      );
-
-      score += positionRun.score;
-      reasons.push(...positionRun.reasons);
-
-      const tierDrop = getTierDropScore(
-        player,
-        availablePlayers,
-      );
-
-      score += tierDrop.score;
-      reasons.push(...tierDrop.reasons);
 
       if (player.tier === 1) {
-        reasons.push("Elite Tier 1 option");
+        reasons.push(
+          "Elite Tier 1 option",
+        );
       } else {
         reasons.push(
           `Strong Tier ${player.tier} value`,
@@ -451,23 +590,32 @@ export function getRecommendations(
       }
 
       if (player.overallRank <= 12) {
-        reasons.push("First-round overall talent");
+        reasons.push(
+          "First-round overall talent",
+        );
       }
 
       const marketValue =
         getMarketValueScore(player);
 
-      score += marketValue.score;
-      reasons.push(...marketValue.reasons);
+      score = applyScoreResult(
+        score,
+        reasons,
+        marketValue,
+      );
 
       return {
         playerId: player.id,
-        score: Math.round(score * 10) / 10,
+        score:
+          Math.round(score * 10) / 10,
         reasons: reasons.slice(0, 4),
       };
     })
     .sort(
-      (firstRecommendation, secondRecommendation) =>
+      (
+        firstRecommendation,
+        secondRecommendation,
+      ) =>
         secondRecommendation.score -
         firstRecommendation.score,
     )
