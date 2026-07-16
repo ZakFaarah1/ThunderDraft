@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { fantasyTeams } from "../data/league";
+import { demoPlayers } from "../data/players";
 import type { Player } from "../types";
 import { getFantasyTeamForPick } from "../utils/draft";
 import DraftOrderSetup from "./DraftOrderSetup";
 import MyRoster from "./MyRoster";
 import PlayerBoard from "./PlayerBoard";
+import RecommendationsPanel from "./RecommendationsPanel";
 
 interface RecordedDraftPick {
   id: string;
@@ -14,6 +16,7 @@ interface RecordedDraftPick {
 }
 
 const draftOrderStorageKey = "thunderdraft-draft-order";
+const draftPicksStorageKey = "thunderdraft-draft-picks";
 
 function loadSavedDraftOrder(): string[] {
   try {
@@ -57,10 +60,69 @@ function loadSavedDraftOrder(): string[] {
   }
 }
 
+function loadSavedDraftPicks(): RecordedDraftPick[] {
+  try {
+    const savedPicks = localStorage.getItem(
+      draftPicksStorageKey,
+    );
+
+    if (!savedPicks) {
+      return [];
+    }
+
+    const parsedPicks: unknown = JSON.parse(savedPicks);
+
+    if (!Array.isArray(parsedPicks)) {
+      return [];
+    }
+
+    const validTeamIds = new Set(
+      fantasyTeams.map((team) => team.id),
+    );
+
+    const picksAreValid = parsedPicks.every((pick) => {
+      if (
+        typeof pick !== "object" ||
+        pick === null ||
+        !("id" in pick) ||
+        !("overallPick" in pick) ||
+        !("fantasyTeamId" in pick) ||
+        !("player" in pick)
+      ) {
+        return false;
+      }
+
+      const savedPick = pick as Partial<RecordedDraftPick>;
+
+      return (
+        typeof savedPick.id === "string" &&
+        typeof savedPick.overallPick === "number" &&
+        Number.isInteger(savedPick.overallPick) &&
+        savedPick.overallPick > 0 &&
+        typeof savedPick.fantasyTeamId === "string" &&
+        validTeamIds.has(savedPick.fantasyTeamId) &&
+        typeof savedPick.player === "object" &&
+        savedPick.player !== null &&
+        typeof savedPick.player.id === "string" &&
+        typeof savedPick.player.name === "string" &&
+        typeof savedPick.player.position === "string"
+      );
+    });
+
+    if (!picksAreValid) {
+      return [];
+    }
+
+    return parsedPicks as RecordedDraftPick[];
+  } catch {
+    return [];
+  }
+}
+
 function DraftRoom() {
   const [draftPicks, setDraftPicks] = useState<
     RecordedDraftPick[]
-  >([]);
+  >(loadSavedDraftPicks);
 
   const [draftOrder, setDraftOrder] = useState<string[]>(
     loadSavedDraftOrder,
@@ -75,6 +137,13 @@ function DraftRoom() {
     manualFantasyTeamId,
     setManualFantasyTeamId,
   ] = useState(fantasyTeams[0].id);
+
+  useEffect(() => {
+    localStorage.setItem(
+      draftPicksStorageKey,
+      JSON.stringify(draftPicks),
+    );
+  }, [draftPicks]);
 
   const nextOverallPick = draftPicks.length + 1;
 
@@ -104,6 +173,10 @@ function DraftRoom() {
 
   const draftedPlayerIds = draftPicks.map(
     (pick) => pick.player.id,
+  );
+
+  const availablePlayers = demoPlayers.filter(
+    (player) => !draftedPlayerIds.includes(player.id),
   );
 
   const userFantasyTeamId = fantasyTeams.find(
@@ -148,6 +221,19 @@ function DraftRoom() {
     );
   }
 
+  function resetDraft() {
+    const confirmed = window.confirm(
+      "Reset all recorded picks? Your saved draft order will remain.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDraftPicks([]);
+    localStorage.removeItem(draftPicksStorageKey);
+  }
+
   return (
     <section
       className={`draft-room ${
@@ -183,6 +269,15 @@ function DraftRoom() {
           <span className="current-pick-badge">
             Pick {nextOverallPick}
           </span>
+
+          <button
+            className="secondary-button compact-button reset-draft-button"
+            disabled={draftPicks.length === 0}
+            onClick={resetDraft}
+            type="button"
+          >
+            Reset Draft
+          </button>
 
           <button
             className="secondary-button compact-button"
@@ -277,6 +372,14 @@ function DraftRoom() {
             Recommendations are ready
           </span>
         </div>
+      )}
+
+      {isUserOnClock && (
+        <RecommendationsPanel
+          availablePlayers={availablePlayers}
+          userDraftedPlayers={userDraftedPlayers}
+          onDraftPlayer={draftPlayer}
+        />
       )}
 
       <div className="draft-room-layout">
