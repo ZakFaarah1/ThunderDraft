@@ -4,6 +4,16 @@ import type {
   Recommendation,
 } from "../types";
 
+interface ScoreResult {
+  score: number;
+  reasons: string[];
+}
+
+export interface RecommendationContext {
+  currentOverallPick: number | null;
+  picksUntilNextTurn: number | null;
+}
+
 const starterTargets: Record<Position, number> = {
   QB: 1,
   RB: 2,
@@ -22,6 +32,9 @@ const depthTargets: Record<Position, number> = {
   DST: 1,
 };
 
+/**
+ * Counts how many drafted players the user has at each position.
+ */
 function countPlayersByPosition(
   players: Player[],
 ): Record<Position, number> {
@@ -41,14 +54,14 @@ function countPlayersByPosition(
   return counts;
 }
 
+/**
+ * Scores a player based on the user's current roster needs.
+ */
 function getRosterNeedScore(
   player: Player,
   positionCounts: Record<Position, number>,
   totalUserPicks: number,
-): {
-  score: number;
-  reasons: string[];
-} {
+): ScoreResult {
   const reasons: string[] = [];
   let score = 0;
 
@@ -115,10 +128,178 @@ function getRosterNeedScore(
   };
 }
 
+/**
+ * Scores whether a player is likely to survive until the next turn.
+ */
+function getNextTurnUrgencyScore(
+  player: Player,
+  context?: RecommendationContext,
+): ScoreResult {
+  if (
+    !context ||
+    context.currentOverallPick === null ||
+    context.picksUntilNextTurn === null ||
+    context.picksUntilNextTurn <= 0
+  ) {
+    return {
+      score: 0,
+      reasons: [],
+    };
+  }
+
+  const nextUserPick =
+    context.currentOverallPick +
+    context.picksUntilNextTurn +
+    1;
+
+  const expectedDraftPick =
+    player.adp ?? player.overallRank;
+
+  let score = 0;
+  const reasons: string[] = [];
+
+  if (expectedDraftPick <= context.currentOverallPick) {
+    score = 18;
+    reasons.push("Falling past expected draft range");
+  } else if (expectedDraftPick <= nextUserPick) {
+    const distanceInsideWindow =
+      nextUserPick - expectedDraftPick;
+
+    score = Math.min(
+      22,
+      10 + distanceInsideWindow * 0.75,
+    );
+
+    reasons.push("Unlikely to reach your next turn");
+  } else if (expectedDraftPick <= nextUserPick + 3) {
+    score = 4;
+    reasons.push("Could be gone before your next turn");
+  }
+
+  /*
+   * Prevents urgency from heavily boosting a player whose
+   * overall ranking is far below the current draft range.
+   */
+  if (player.overallRank > nextUserPick + 8) {
+    score = Math.min(score, 6);
+  }
+
+  return {
+    score,
+    reasons,
+  };
+}
+
+/**
+ * Scores players who are followed by a positional tier drop.
+ */
+function getTierDropScore(
+  player: Player,
+  availablePlayers: Player[],
+): ScoreResult {
+  const laterPositionPlayers = availablePlayers
+    .filter(
+      (availablePlayer) =>
+        availablePlayer.position === player.position &&
+        availablePlayer.id !== player.id &&
+        availablePlayer.overallRank >
+          player.overallRank,
+    )
+    .sort(
+      (firstPlayer, secondPlayer) =>
+        firstPlayer.overallRank -
+        secondPlayer.overallRank,
+    );
+
+  const nextPositionPlayer =
+    laterPositionPlayers[0];
+
+  if (!nextPositionPlayer) {
+    return {
+      score: 14,
+      reasons: [
+        `Last available ${player.position} option`,
+      ],
+    };
+  }
+
+  const rankDrop =
+    nextPositionPlayer.overallRank -
+    player.overallRank;
+
+  const hasTierDrop =
+    nextPositionPlayer.tier > player.tier;
+
+  if (hasTierDrop) {
+    return {
+      score: Math.min(
+        16,
+        10 + rankDrop * 0.5,
+      ),
+      reasons: [
+        `Last ${player.position} in Tier ${player.tier}`,
+      ],
+    };
+  }
+
+  if (rankDrop >= 8) {
+    return {
+      score: Math.min(
+        12,
+        rankDrop * 0.75,
+      ),
+      reasons: [
+        `Major ${player.position} value drop after this pick`,
+      ],
+    };
+  }
+
+  return {
+    score: 0,
+    reasons: [],
+  };
+}
+
+/**
+ * Scores players who rank better than their current market ADP.
+ */
+function getMarketValueScore(
+  player: Player,
+): ScoreResult {
+  if (player.adp === null) {
+    return {
+      score: 0,
+      reasons: [],
+    };
+  }
+
+  const rankingAdvantage =
+    player.adp - player.overallRank;
+
+  if (rankingAdvantage < 4) {
+    return {
+      score: 0,
+      reasons: [],
+    };
+  }
+
+  return {
+    score: Math.min(
+      10,
+      rankingAdvantage * 0.5,
+    ),
+    reasons: ["Ranks ahead of market ADP"],
+  };
+}
+
+/**
+ * Ranks available players using value, roster need, and timing.
+ */
 export function getRecommendations(
   availablePlayers: Player[],
   userDraftedPlayers: Player[],
   limit = 5,
+  context?: RecommendationContext,
 ): Recommendation[] {
   const positionCounts = countPlayersByPosition(
     userDraftedPlayers,
@@ -144,8 +325,7 @@ export function getRecommendations(
       score += tierBonus;
 
       /*
-       * Highly ranked players at their position receive a
-       * smaller additional boost.
+       * Strong positional rankings receive a smaller bonus.
        */
       score += Math.max(
         0,
@@ -161,29 +341,39 @@ export function getRecommendations(
       score += rosterNeed.score;
       reasons.push(...rosterNeed.reasons);
 
+      const urgency = getNextTurnUrgencyScore(
+        player,
+        context,
+      );
+
+      score += urgency.score;
+      reasons.push(...urgency.reasons);
+
+      const tierDrop = getTierDropScore(
+        player,
+        availablePlayers,
+      );
+
+      score += tierDrop.score;
+      reasons.push(...tierDrop.reasons);
+
       if (player.tier === 1) {
         reasons.push("Elite Tier 1 option");
       } else {
-        reasons.push(`Strong Tier ${player.tier} value`);
+        reasons.push(
+          `Strong Tier ${player.tier} value`,
+        );
       }
 
       if (player.overallRank <= 12) {
         reasons.push("First-round overall talent");
       }
 
-      if (player.adp !== null) {
-        const rankingAdvantage =
-          player.adp - player.overallRank;
+      const marketValue =
+        getMarketValueScore(player);
 
-        if (rankingAdvantage >= 4) {
-          score += Math.min(
-            10,
-            rankingAdvantage * 0.5,
-          );
-
-          reasons.push("Ranks ahead of market ADP");
-        }
-      }
+      score += marketValue.score;
+      reasons.push(...marketValue.reasons);
 
       return {
         playerId: player.id,

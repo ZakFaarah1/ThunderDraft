@@ -21,9 +21,10 @@ interface RecordedDraftPick {
 
 const draftOrderStorageKey = "thunderdraft-draft-order";
 const draftPicksStorageKey = "thunderdraft-draft-picks";
+const totalDraftRounds = 15;
 
 /**
- * Restores and validates the saved 12-team draft order.
+ * Loads and validates the saved draft order.
  */
 function loadSavedDraftOrder(): string[] {
   try {
@@ -68,7 +69,7 @@ function loadSavedDraftOrder(): string[] {
 }
 
 /**
- * Restores and validates previously recorded draft picks.
+ * Loads and validates the saved draft selections.
  */
 function loadSavedDraftPicks(): RecordedDraftPick[] {
   try {
@@ -130,7 +131,7 @@ function loadSavedDraftPicks(): RecordedDraftPick[] {
 }
 
 /**
- * Controls the live draft board, snake order, roster, and recommendations.
+ * Displays and controls the live fantasy draft room.
  */
 function DraftRoom() {
   const [draftPicks, setDraftPicks] = useState<
@@ -206,7 +207,7 @@ function DraftRoom() {
       ? getUserOverallPicks(
           userDraftSlot,
           fantasyTeams.length,
-          15,
+          totalDraftRounds,
           "snake",
         )
       : [];
@@ -227,7 +228,7 @@ function DraftRoom() {
     .map((pick) => pick.player);
 
   /**
-   * Saves the official order and enables automatic snake cycling.
+   * Saves a complete league draft order.
    */
   function saveDraftOrder(teamIds: string[]) {
     setDraftOrder(teamIds);
@@ -267,7 +268,7 @@ function DraftRoom() {
   }
 
   /**
-   * Clears all picks while preserving the saved draft order.
+   * Clears every pick while preserving the draft order.
    */
   function resetDraft() {
     const confirmed = window.confirm(
@@ -427,6 +428,8 @@ function DraftRoom() {
       {isUserOnClock && (
         <RecommendationsPanel
           availablePlayers={availablePlayers}
+          currentOverallPick={nextOverallPick}
+          picksUntilNextTurn={picksUntilNextTurn}
           userDraftedPlayers={userDraftedPlayers}
           onDraftPlayer={draftPlayer}
         />
