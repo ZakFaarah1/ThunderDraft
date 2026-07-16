@@ -2248,3 +2248,366 @@ button {
     flex: 1;
   }
 }
+/* Contains the live roster-health analysis. */
+.roster-health-card {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(34, 197, 94, 0.1),
+      transparent 38%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(15, 15, 15, 0.98),
+      rgba(7, 7, 7, 0.98)
+    );
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.25);
+}
+
+/* Uses green styling when the roster is healthy. */
+.roster-health-card.roster-health-strong {
+  border-color: rgba(34, 197, 94, 0.38);
+}
+
+/* Uses amber styling when the roster needs attention. */
+.roster-health-card.roster-health-watch {
+  border-color: rgba(245, 158, 11, 0.38);
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(245, 158, 11, 0.1),
+      transparent 38%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(20, 16, 8, 0.98),
+      rgba(7, 7, 7, 0.98)
+    );
+}
+
+/* Uses red styling when the roster has major weaknesses. */
+.roster-health-card.roster-health-weak {
+  border-color: rgba(239, 68, 68, 0.38);
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(239, 68, 68, 0.1),
+      transparent 38%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(22, 10, 10, 0.98),
+      rgba(7, 7, 7, 0.98)
+    );
+}
+
+/* Aligns the roster-health title and numeric score. */
+.roster-health-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+  padding: 20px;
+}
+
+/* Removes extra spacing from the roster-health heading. */
+.roster-health-heading h3 {
+  margin: 5px 0 0;
+  color: #f5f5f5;
+  font-size: 20px;
+}
+
+/* Displays the roster-health score and maximum value. */
+.roster-health-score {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+/* Highlights the current roster-health score. */
+.roster-health-score strong {
+  color: #86efac;
+  font-size: 31px;
+  line-height: 1;
+}
+
+/* Uses amber score text for a roster needing attention. */
+.roster-health-watch
+  .roster-health-score
+  strong {
+  color: #fcd34d;
+}
+
+/* Uses red score text for a weak roster. */
+.roster-health-weak
+  .roster-health-score
+  strong {
+  color: #fca5a5;
+}
+
+/* Styles the score denominator. */
+.roster-health-score span {
+  color: #696969;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* Shows the overall health label and summary. */
+.roster-health-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.065);
+  padding: 15px 20px;
+}
+
+/* Displays the health-level status badge. */
+.roster-health-level {
+  flex-shrink: 0;
+  border: 1px solid rgba(34, 197, 94, 0.34);
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+  padding: 6px 9px;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Styles the needs-attention health badge. */
+.roster-health-level-watch {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.11);
+  color: #fcd34d;
+}
+
+/* Styles the weak health badge. */
+.roster-health-level-weak {
+  border-color: rgba(239, 68, 68, 0.42);
+  background: rgba(239, 68, 68, 0.11);
+  color: #fca5a5;
+}
+
+/* Styles the health summary text. */
+.roster-health-status p {
+  margin: 0;
+  color: #949494;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+/* Displays the drafted count at every position. */
+.roster-position-counts {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 7px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.065);
+  padding: 15px 20px;
+}
+
+/* Styles one position-count tile. */
+.roster-position-count {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 8px 4px;
+}
+
+/* Styles the position abbreviation. */
+.roster-position-count span {
+  color: #707070;
+  font-size: 8px;
+  font-weight: 950;
+}
+
+/* Highlights the number drafted at a position. */
+.roster-position-count strong {
+  color: #e5e5e5;
+  font-size: 15px;
+}
+
+/* Highlights the roster's most urgent need. */
+.roster-health-primary-need {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 16px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 14px;
+}
+
+/* Styles the urgent-need category label. */
+.roster-health-primary-need > span {
+  color: #737373;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/* Styles the urgent roster need title. */
+.roster-health-primary-need > strong {
+  color: #f5f5f5;
+  font-size: 14px;
+}
+
+/* Styles the urgent roster need explanation. */
+.roster-health-primary-need > p {
+  margin: 0;
+  color: #969696;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* Holds the remaining roster concerns. */
+.roster-health-issues {
+  border-top: 1px solid rgba(255, 255, 255, 0.065);
+  padding: 16px 20px;
+}
+
+/* Styles the secondary-concerns heading. */
+.roster-health-issues > span,
+.roster-health-strengths > span {
+  color: #737373;
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/* Removes default list spacing from roster concerns. */
+.roster-health-issues ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Styles an individual roster concern. */
+.roster-health-issue {
+  border-left: 3px solid #f59e0b;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.055);
+  padding: 10px 11px;
+}
+
+/* Uses red emphasis for severe roster concerns. */
+.roster-health-issue-weak {
+  border-left-color: #ef4444;
+  background: rgba(239, 68, 68, 0.055);
+}
+
+/* Aligns the concern title and position label. */
+.roster-health-issue > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* Styles a concern title. */
+.roster-health-issue strong {
+  color: #dedede;
+  font-size: 11px;
+}
+
+/* Displays the position associated with a concern. */
+.roster-health-issue div span {
+  color: #8b8b8b;
+  font-size: 8px;
+  font-weight: 950;
+}
+
+/* Styles the concern explanation. */
+.roster-health-issue p {
+  margin: 5px 0 0;
+  color: #858585;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+/* Contains the roster's completed strengths. */
+.roster-health-strengths {
+  border-top: 1px solid rgba(255, 255, 255, 0.065);
+  padding: 16px 20px 19px;
+}
+
+/* Displays completed roster strengths as badges. */
+.roster-health-strengths > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+/* Styles each roster-strength badge. */
+.roster-health-strengths
+  > div
+  > span {
+  border: 1px solid rgba(34, 197, 94, 0.18);
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.07);
+  color: #bbf7d0;
+  padding: 6px 8px;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+/* Styles the message shown before strengths are earned. */
+.roster-health-strengths > p {
+  margin: 9px 0 0;
+  color: #777777;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* Reflows position counts on narrow sidebar widths. */
+@media (max-width: 1100px) {
+  .roster-position-counts {
+    grid-template-columns: repeat(
+      3,
+      minmax(0, 1fr)
+    );
+  }
+}
+
+/* Optimizes the roster-health panel for mobile devices. */
+@media (max-width: 560px) {
+  .roster-health-heading,
+  .roster-health-status,
+  .roster-position-counts,
+  .roster-health-issues,
+  .roster-health-strengths {
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+
+  .roster-health-primary-need {
+    margin-right: 15px;
+    margin-left: 15px;
+  }
+
+  .roster-health-status {
+    flex-direction: column;
+  }
+
+  .roster-position-counts {
+    grid-template-columns: repeat(
+      3,
+      minmax(0, 1fr)
+    );
+  }
+}

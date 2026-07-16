@@ -1,12 +1,25 @@
 import { useEffect, useState } from "react";
+
 import { fantasyTeams } from "../data/league";
 import { demoPlayers } from "../data/players";
-import type { Player } from "../types";
+
+import type {
+  Player,
+  Position,
+} from "../types";
+
 import {
   getFantasyTeamForPick,
   getPicksUntilNextTurn,
   getUserOverallPicks,
 } from "../utils/draft";
+
+import {
+  getRosterHealthReport,
+  type RosterHealthLevel,
+  type RosterHealthReport,
+} from "../utils/rosterHealth";
+
 import DraftOrderSetup from "./DraftOrderSetup";
 import MyRoster from "./MyRoster";
 import PlayerBoard from "./PlayerBoard";
@@ -26,6 +39,56 @@ const draftPicksStorageKey =
   "thunderdraft-draft-picks";
 
 const totalDraftRounds = 15;
+
+/*
+ * Controls the display order for roster position counts.
+ */
+const rosterPositionOrder: Position[] = [
+  "QB",
+  "RB",
+  "WR",
+  "TE",
+  "K",
+  "DST",
+];
+
+/**
+ * Converts a roster-health level into a user-facing label.
+ */
+function getRosterHealthLabel(
+  level: RosterHealthLevel,
+): string {
+  if (level === "strong") {
+    return "Strong";
+  }
+
+  if (level === "watch") {
+    return "Needs attention";
+  }
+
+  return "Weak";
+}
+
+/**
+ * Creates a short explanation of the current roster-health status.
+ */
+function getRosterHealthSummary(
+  report: RosterHealthReport,
+): string {
+  if (report.issues.length === 0) {
+    return "Your roster has no urgent weaknesses right now.";
+  }
+
+  if (report.level === "strong") {
+    return "Your roster is balanced, with only minor needs remaining.";
+  }
+
+  if (report.level === "watch") {
+    return "Your core is competitive, but one or more positions need attention.";
+  }
+
+  return "Address the most urgent weakness before adding luxury depth.";
+}
 
 /**
  * Loads and validates the saved draft order.
@@ -170,6 +233,9 @@ function DraftRoom() {
     setManualFantasyTeamId,
   ] = useState(fantasyTeams[0].id);
 
+  /*
+   * Saves draft selections whenever the recorded picks change.
+   */
   useEffect(() => {
     localStorage.setItem(
       draftPicksStorageKey,
@@ -255,7 +321,21 @@ function DraftRoom() {
     )
     .map((pick) => pick.player);
 
-  // Provides the latest six picks for positional-run analysis.
+  /*
+   * Recalculates roster health whenever the user's
+   * drafted players change.
+   */
+  const rosterHealthReport =
+    getRosterHealthReport(
+      userDraftedPlayers,
+    );
+
+  const mostUrgentRosterIssue =
+    rosterHealthReport.issues[0] ?? null;
+
+  /*
+   * Provides the latest six picks for positional-run analysis.
+   */
   const recentDraftedPlayers = draftPicks
     .slice(-6)
     .map((pick) => pick.player);
@@ -277,7 +357,7 @@ function DraftRoom() {
   }
 
   /**
-   * Records a player for the team on the clock.
+   * Records a player for the team currently on the clock.
    */
   function draftPlayer(player: Player) {
     const newPick: RecordedDraftPick = {
@@ -303,7 +383,7 @@ function DraftRoom() {
   }
 
   /**
-   * Clears all picks while keeping the draft order.
+   * Clears all picks while keeping the selected draft order.
    */
   function resetDraft() {
     const confirmed = window.confirm(
@@ -509,6 +589,157 @@ function DraftRoom() {
         />
 
         <div className="draft-sidebar">
+          <aside
+            className={`roster-health-card roster-health-${rosterHealthReport.level}`}
+          >
+            <div className="roster-health-heading">
+              <div>
+                <p className="eyebrow">
+                  Adaptive roster analysis
+                </p>
+
+                <h3>Roster Health</h3>
+              </div>
+
+              <div className="roster-health-score">
+                <strong>
+                  {rosterHealthReport.score}
+                </strong>
+
+                <span>/100</span>
+              </div>
+            </div>
+
+            <div className="roster-health-status">
+              <span
+                className={`roster-health-level roster-health-level-${rosterHealthReport.level}`}
+              >
+                {getRosterHealthLabel(
+                  rosterHealthReport.level,
+                )}
+              </span>
+
+              <p>
+                {getRosterHealthSummary(
+                  rosterHealthReport,
+                )}
+              </p>
+            </div>
+
+            <div className="roster-position-counts">
+              {rosterPositionOrder.map(
+                (position) => (
+                  <div
+                    className="roster-position-count"
+                    key={position}
+                  >
+                    <span>{position}</span>
+
+                    <strong>
+                      {
+                        rosterHealthReport
+                          .positionCounts[
+                          position
+                        ]
+                      }
+                    </strong>
+                  </div>
+                ),
+              )}
+            </div>
+
+            <div className="roster-health-primary-need">
+              <span>
+                Most urgent draft need
+              </span>
+
+              {mostUrgentRosterIssue ? (
+                <>
+                  <strong>
+                    {
+                      mostUrgentRosterIssue.title
+                    }
+                  </strong>
+
+                  <p>
+                    {
+                      mostUrgentRosterIssue.description
+                    }
+                  </p>
+                </>
+              ) : (
+                <>
+                  <strong>
+                    No urgent need
+                  </strong>
+
+                  <p>
+                    Continue selecting the best value
+                    while preserving roster balance.
+                  </p>
+                </>
+              )}
+            </div>
+
+            {rosterHealthReport.issues.length >
+              1 && (
+              <div className="roster-health-issues">
+                <span>
+                  Other roster concerns
+                </span>
+
+                <ul>
+                  {rosterHealthReport.issues
+                    .slice(1, 4)
+                    .map((issue) => (
+                      <li
+                        className={`roster-health-issue roster-health-issue-${issue.level}`}
+                        key={issue.id}
+                      >
+                        <div>
+                          <strong>
+                            {issue.title}
+                          </strong>
+
+                          <span>
+                            {issue.position}
+                          </span>
+                        </div>
+
+                        <p>
+                          {issue.description}
+                        </p>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="roster-health-strengths">
+              <span>
+                Current strengths
+              </span>
+
+              {rosterHealthReport.strengths
+                .length > 0 ? (
+                <div>
+                  {rosterHealthReport.strengths
+                    .slice(0, 4)
+                    .map((strength) => (
+                      <span key={strength}>
+                        {strength}
+                      </span>
+                    ))}
+                </div>
+              ) : (
+                <p>
+                  Strengths will appear as your
+                  starting lineup and depth improve.
+                </p>
+              )}
+            </div>
+          </aside>
+
           <aside className="draft-history-card">
             <div className="draft-history-heading">
               <div>
