@@ -7,6 +7,9 @@ export interface PickDetails {
   fantasyTeam: number;
 }
 
+/**
+ * Returns the draft slot assigned to an overall pick.
+ */
 export function getFantasyTeamForPick(
   overallPick: number,
   teamCount: number,
@@ -33,6 +36,9 @@ export function getFantasyTeamForPick(
   return teamCount - positionInRound + 1;
 }
 
+/**
+ * Returns the round, round position, and team for a pick.
+ */
 export function getPickDetails(
   overallPick: number,
   teamCount: number,
@@ -56,6 +62,9 @@ export function getPickDetails(
   };
 }
 
+/**
+ * Generates every overall pick owned by one draft slot.
+ */
 export function getUserOverallPicks(
   draftSlot: number,
   teamCount: number,
@@ -68,9 +77,19 @@ export function getUserOverallPicks(
     );
   }
 
+  if (totalRounds < 1) {
+    throw new Error(
+      "The draft must contain at least one round.",
+    );
+  }
+
   const picks: number[] = [];
 
-  for (let round = 1; round <= totalRounds; round += 1) {
+  for (
+    let round = 1;
+    round <= totalRounds;
+    round += 1
+  ) {
     const isReversed =
       draftFormat === "snake" && round % 2 === 0;
 
@@ -78,25 +97,36 @@ export function getUserOverallPicks(
       ? teamCount - draftSlot + 1
       : draftSlot;
 
-    picks.push(
-      (round - 1) * teamCount + pickInRound,
-    );
+    const overallPick =
+      (round - 1) * teamCount + pickInRound;
+
+    picks.push(overallPick);
   }
 
   return picks;
 }
 
+/**
+ * Counts the other selections before the user's next pick.
+ */
 export function getPicksUntilNextTurn(
   currentOverallPick: number,
   userPicks: number[],
 ): number | null {
-  const nextUserPick = userPicks.find(
-    (pick) => pick >= currentOverallPick,
+  const futureUserPicks = userPicks.filter(
+    (pick) =>
+      Number.isInteger(pick) &&
+      pick > currentOverallPick,
   );
 
-  if (nextUserPick === undefined) {
+  if (futureUserPicks.length === 0) {
     return null;
   }
 
-  return nextUserPick - currentOverallPick;
+  const nextUserPick = Math.min(...futureUserPicks);
+
+  return Math.max(
+    0,
+    nextUserPick - currentOverallPick - 1,
+  );
 }

@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import { fantasyTeams } from "../data/league";
 import { demoPlayers } from "../data/players";
 import type { Player } from "../types";
-import { getFantasyTeamForPick } from "../utils/draft";
+import {
+  getFantasyTeamForPick,
+  getPicksUntilNextTurn,
+  getUserOverallPicks,
+} from "../utils/draft";
 import DraftOrderSetup from "./DraftOrderSetup";
 import MyRoster from "./MyRoster";
 import PlayerBoard from "./PlayerBoard";
@@ -18,6 +22,9 @@ interface RecordedDraftPick {
 const draftOrderStorageKey = "thunderdraft-draft-order";
 const draftPicksStorageKey = "thunderdraft-draft-picks";
 
+/**
+ * Restores and validates the saved 12-team draft order.
+ */
 function loadSavedDraftOrder(): string[] {
   try {
     const savedOrder = localStorage.getItem(
@@ -60,6 +67,9 @@ function loadSavedDraftOrder(): string[] {
   }
 }
 
+/**
+ * Restores and validates previously recorded draft picks.
+ */
 function loadSavedDraftPicks(): RecordedDraftPick[] {
   try {
     const savedPicks = localStorage.getItem(
@@ -119,6 +129,9 @@ function loadSavedDraftPicks(): RecordedDraftPick[] {
   }
 }
 
+/**
+ * Controls the live draft board, snake order, roster, and recommendations.
+ */
 function DraftRoom() {
   const [draftPicks, setDraftPicks] = useState<
     RecordedDraftPick[]
@@ -183,6 +196,29 @@ function DraftRoom() {
     (team) => team.isUser,
   )?.id;
 
+  const userDraftSlot =
+    hasDraftOrder && userFantasyTeamId
+      ? draftOrder.indexOf(userFantasyTeamId) + 1
+      : null;
+
+  const userOverallPicks =
+    userDraftSlot !== null && userDraftSlot > 0
+      ? getUserOverallPicks(
+          userDraftSlot,
+          fantasyTeams.length,
+          15,
+          "snake",
+        )
+      : [];
+
+  const picksUntilNextTurn =
+    isUserOnClock && userOverallPicks.length > 0
+      ? getPicksUntilNextTurn(
+          nextOverallPick,
+          userOverallPicks,
+        )
+      : null;
+
   const userDraftedPlayers = draftPicks
     .filter(
       (pick) =>
@@ -190,6 +226,9 @@ function DraftRoom() {
     )
     .map((pick) => pick.player);
 
+  /**
+   * Saves the official order and enables automatic snake cycling.
+   */
   function saveDraftOrder(teamIds: string[]) {
     setDraftOrder(teamIds);
 
@@ -201,6 +240,9 @@ function DraftRoom() {
     setShowDraftOrderSetup(false);
   }
 
+  /**
+   * Records a player for the manager currently on the clock.
+   */
   function draftPlayer(player: Player) {
     const newPick: RecordedDraftPick = {
       id: `${Date.now()}-${player.id}`,
@@ -215,12 +257,18 @@ function DraftRoom() {
     ]);
   }
 
+  /**
+   * Removes the most recently recorded selection.
+   */
   function undoLastPick() {
     setDraftPicks((currentPicks) =>
       currentPicks.slice(0, -1),
     );
   }
 
+  /**
+   * Clears all picks while preserving the saved draft order.
+   */
   function resetDraft() {
     const confirmed = window.confirm(
       "Reset all recorded picks? Your saved draft order will remain.",
@@ -369,7 +417,9 @@ function DraftRoom() {
           </div>
 
           <span>
-            Recommendations are ready
+            {picksUntilNextTurn === null
+              ? "Recommendations are ready"
+              : `${picksUntilNextTurn} picks until your next turn`}
           </span>
         </div>
       )}
