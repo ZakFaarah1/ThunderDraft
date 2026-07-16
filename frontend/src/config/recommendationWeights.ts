@@ -75,4 +75,12 @@ export const recommendationWeights = {
   marketAdvantageMinimum: 4,
   marketAdvantageMultiplier: 0.5,
   maximumMarketAdvantageBonus: 10,
+    /*
+   * Adaptive roster-health scoring.
+   */
+  weakestPositionBonus: 14,
+  secondaryWeakPositionBonus: 8,
+  rosterIssuePriorityMultiplier: 0.25,
+  maximumRosterHealthBonus: 24,
+  flexHealthBonus: 6,
 } as const;

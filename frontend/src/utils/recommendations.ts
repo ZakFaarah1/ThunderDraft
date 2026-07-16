@@ -6,6 +6,11 @@ import type {
   Recommendation,
 } from "../types";
 
+import {
+  getRosterHealthReport,
+  type RosterHealthReport,
+} from "./rosterHealth";
+
 interface ScoreResult {
   score: number;
   reasons: string[];
@@ -17,6 +22,10 @@ export interface RecommendationContext {
   recentDraftedPlayers?: Player[];
 }
 
+/*
+ * Defines the minimum number of starters needed
+ * at each position.
+ */
 const starterTargets: Record<Position, number> = {
   QB: 1,
   RB: 2,
@@ -26,6 +35,9 @@ const starterTargets: Record<Position, number> = {
   DST: 1,
 };
 
+/*
+ * Defines the preferred depth target for each position.
+ */
 const depthTargets: Record<Position, number> = {
   QB: 1,
   RB: 4,
@@ -77,6 +89,10 @@ function getRosterNeedScore(
   const depthTarget =
     depthTargets[player.position];
 
+  /*
+   * Prioritizes players who fill an unfilled starting
+   * position on the user's roster.
+   */
   if (currentPositionCount < starterTarget) {
     if (
       player.position === "RB" ||
@@ -103,6 +119,10 @@ function getRosterNeedScore(
     currentPositionCount < depthTarget &&
     ["RB", "WR", "TE"].includes(player.position)
   ) {
+    /*
+     * Rewards useful skill-position depth after the
+     * starting lineup requirement has been met.
+     */
     score += recommendationWeights.flexDepthBonus;
 
     reasons.push(
@@ -110,6 +130,10 @@ function getRosterNeedScore(
     );
   }
 
+  /*
+   * Reduces the value of drafting a second quarterback
+   * before other roster needs are addressed.
+   */
   if (
     player.position === "QB" &&
     currentPositionCount >= 1
@@ -119,6 +143,10 @@ function getRosterNeedScore(
         .duplicateQuarterbackPenalty;
   }
 
+  /*
+   * Reduces the value of drafting more than two
+   * tight ends.
+   */
   if (
     player.position === "TE" &&
     currentPositionCount >= 2
@@ -136,6 +164,10 @@ function getRosterNeedScore(
     recommendationWeights
       .earlyKickerDefensePickThreshold;
 
+  /*
+   * Discourages kicker and defense selections before
+   * core starters and depth are secured.
+   */
   if (isKickerOrDefense && isEarlyDraft) {
     score -=
       recommendationWeights
@@ -149,7 +181,119 @@ function getRosterNeedScore(
 }
 
 /**
- * Scores whether a player may disappear before the next turn.
+ * Scores players who address the roster's most urgent
+ * weaknesses.
+ */
+function getRosterHealthScore(
+  player: Player,
+  rosterHealthReport: RosterHealthReport,
+): ScoreResult {
+  const reasons: string[] = [];
+  let score = 0;
+
+  const weaknessIndex =
+    rosterHealthReport.weakestPositions.indexOf(
+      player.position,
+    );
+
+  /*
+   * Gives the largest adaptive bonus to the position
+   * identified as the roster's biggest weakness.
+   */
+  if (weaknessIndex === 0) {
+    score +=
+      recommendationWeights
+        .weakestPositionBonus;
+
+    reasons.push(
+      `Addresses your biggest ${player.position} weakness`,
+    );
+  } else if (weaknessIndex === 1) {
+    /*
+     * Gives a smaller bonus to the roster's second-most
+     * important positional weakness.
+     */
+    score +=
+      recommendationWeights
+        .secondaryWeakPositionBonus;
+
+    reasons.push(
+      `Strengthens a weak ${player.position} group`,
+    );
+  }
+
+  /*
+   * Adds more value when the health report contains
+   * severe issues tied to this position.
+   */
+  if (
+    weaknessIndex === 0 ||
+    weaknessIndex === 1
+  ) {
+    const positionIssuePriority =
+      rosterHealthReport.issues
+        .filter(
+          (issue) =>
+            issue.position ===
+            player.position,
+        )
+        .reduce(
+          (totalPriority, issue) =>
+            totalPriority +
+            issue.priority,
+          0,
+        );
+
+    score +=
+      positionIssuePriority *
+      recommendationWeights
+        .rosterIssuePriorityMultiplier;
+  }
+
+  const hasFlexDepthIssue =
+    rosterHealthReport.issues.some(
+      (issue) =>
+        issue.position === "FLEX",
+    );
+
+  const isFlexPosition =
+    player.position === "RB" ||
+    player.position === "WR" ||
+    player.position === "TE";
+
+  /*
+   * Rewards RB, WR, and TE players when the roster
+   * lacks enough FLEX-capable depth.
+   */
+  if (
+    hasFlexDepthIssue &&
+    isFlexPosition
+  ) {
+    score +=
+      recommendationWeights.flexHealthBonus;
+
+    reasons.push(
+      "Improves thin FLEX depth",
+    );
+  }
+
+  /*
+   * Prevents roster-health bonuses from overwhelming
+   * overall player value and draft timing.
+   */
+  return {
+    score: Math.min(
+      recommendationWeights
+        .maximumRosterHealthBonus,
+      score,
+    ),
+    reasons,
+  };
+}
+
+/**
+ * Scores whether a player may disappear before the
+ * user's next turn.
  */
 function getNextTurnUrgencyScore(
   player: Player,
@@ -178,6 +322,10 @@ function getNextTurnUrgencyScore(
   let score = 0;
   const reasons: string[] = [];
 
+  /*
+   * Rewards a player who has already fallen past their
+   * expected draft position.
+   */
   if (
     expectedDraftPick <=
     context.currentOverallPick
@@ -189,6 +337,10 @@ function getNextTurnUrgencyScore(
       "Falling past expected draft range",
     );
   } else if (expectedDraftPick <= nextUserPick) {
+    /*
+     * Raises urgency when the player is unlikely to
+     * remain available at the user's next selection.
+     */
     const distanceInsideWindow =
       nextUserPick - expectedDraftPick;
 
@@ -208,6 +360,10 @@ function getNextTurnUrgencyScore(
     nextUserPick +
       recommendationWeights.nearNextTurnRange
   ) {
+    /*
+     * Adds a smaller urgency bonus when the player's
+     * draft range is just beyond the next turn.
+     */
     score =
       recommendationWeights.nearNextTurnBonus;
 
@@ -239,7 +395,8 @@ function getNextTurnUrgencyScore(
 }
 
 /**
- * Scores a player when their position is being drafted rapidly.
+ * Scores a player when their position is being drafted
+ * rapidly by other teams.
  */
 function getPositionRunScore(
   player: Player,
@@ -282,6 +439,10 @@ function getPositionRunScore(
         player.position,
     ).length;
 
+  /*
+   * Applies the strongest run bonus when four or more
+   * recent picks came from the same position.
+   */
   if (
     recentPositionSelections >=
     recommendationWeights
@@ -297,6 +458,10 @@ function getPositionRunScore(
     };
   }
 
+  /*
+   * Applies a moderate bonus when a positional run is
+   * beginning to develop.
+   */
   if (
     recentPositionSelections >=
     recommendationWeights.developingRunMinimum
@@ -317,6 +482,10 @@ function getPositionRunScore(
       recommendationWeights
         .risingDemandPickThreshold;
 
+  /*
+   * Applies a smaller demand bonus when two recent
+   * selections occurred and the user has a long wait.
+   */
   if (
     recentPositionSelections >=
       recommendationWeights.risingDemandMinimum &&
@@ -339,7 +508,8 @@ function getPositionRunScore(
 }
 
 /**
- * Scores players followed by a major positional drop.
+ * Scores players followed by a major positional value
+ * or tier drop.
  */
 function getTierDropScore(
   player: Player,
@@ -364,6 +534,9 @@ function getTierDropScore(
   const nextPositionPlayer =
     laterPositionPlayers[0];
 
+  /*
+   * Rewards the final available player at a position.
+   */
   if (!nextPositionPlayer) {
     return {
       score:
@@ -381,6 +554,10 @@ function getTierDropScore(
   const hasTierDrop =
     nextPositionPlayer.tier > player.tier;
 
+  /*
+   * Rewards the final player remaining before the next
+   * positional tier begins.
+   */
   if (hasTierDrop) {
     return {
       score: Math.min(
@@ -398,6 +575,10 @@ function getTierDropScore(
     };
   }
 
+  /*
+   * Rewards a player when the next same-position option
+   * is significantly lower in the rankings.
+   */
   if (
     rankDrop >=
     recommendationWeights.majorRankDropMinimum
@@ -438,6 +619,10 @@ function getMarketValueScore(
   const rankingAdvantage =
     player.adp - player.overallRank;
 
+  /*
+   * Ignores small differences between internal rank
+   * and market ADP.
+   */
   if (
     rankingAdvantage <
     recommendationWeights.marketAdvantageMinimum
@@ -448,6 +633,10 @@ function getMarketValueScore(
     };
   }
 
+  /*
+   * Rewards players who are ranked meaningfully ahead
+   * of their average market draft position.
+   */
   return {
     score: Math.min(
       recommendationWeights
@@ -463,8 +652,8 @@ function getMarketValueScore(
 }
 
 /**
- * Calculates the base score from overall rank, tier, and
- * positional rank.
+ * Calculates the base score from overall rank, tier,
+ * and positional rank.
  */
 function getBasePlayerScore(
   player: Player,
@@ -497,7 +686,8 @@ function getBasePlayerScore(
 }
 
 /**
- * Adds a score result and its reasons to a recommendation.
+ * Adds one scoring result and its explanations to the
+ * current recommendation.
  */
 function applyScoreResult(
   currentScore: number,
@@ -510,7 +700,8 @@ function applyScoreResult(
 }
 
 /**
- * Ranks players using value, need, timing, tiers, and trends.
+ * Ranks available players using talent, roster health,
+ * draft timing, tiers, market value, and positional trends.
  */
 export function getRecommendations(
   availablePlayers: Player[],
@@ -523,10 +714,23 @@ export function getRecommendations(
       userDraftedPlayers,
     );
 
+  /*
+   * Calculates roster weaknesses once before scoring
+   * every available player.
+   */
+  const rosterHealthReport =
+    getRosterHealthReport(
+      userDraftedPlayers,
+    );
+
   return availablePlayers
     .map((player): Recommendation => {
       const reasons: string[] = [];
 
+      /*
+       * Begins with the player's overall talent,
+       * positional rank, and tier.
+       */
       let score =
         getBasePlayerScore(player);
 
@@ -543,6 +747,26 @@ export function getRecommendations(
         rosterNeed,
       );
 
+      /*
+       * Adjusts the recommendation using the roster's
+       * most urgent weaknesses.
+       */
+      const rosterHealth =
+        getRosterHealthScore(
+          player,
+          rosterHealthReport,
+        );
+
+      score = applyScoreResult(
+        score,
+        reasons,
+        rosterHealth,
+      );
+
+      /*
+       * Accounts for whether the player is likely to
+       * survive until the user's next turn.
+       */
       const urgency =
         getNextTurnUrgencyScore(
           player,
@@ -555,6 +779,9 @@ export function getRecommendations(
         urgency,
       );
 
+      /*
+       * Reacts to recent runs at the player's position.
+       */
       const positionRun =
         getPositionRunScore(
           player,
@@ -567,6 +794,10 @@ export function getRecommendations(
         positionRun,
       );
 
+      /*
+       * Accounts for upcoming positional tier and
+       * ranking drops.
+       */
       const tierDrop =
         getTierDropScore(
           player,
@@ -579,6 +810,10 @@ export function getRecommendations(
         tierDrop,
       );
 
+      /*
+       * Adds a general tier explanation to the visible
+       * recommendation reasons.
+       */
       if (player.tier === 1) {
         reasons.push(
           "Elite Tier 1 option",
@@ -589,12 +824,20 @@ export function getRecommendations(
         );
       }
 
+      /*
+       * Highlights players with first-round-level
+       * overall rankings.
+       */
       if (player.overallRank <= 12) {
         reasons.push(
           "First-round overall talent",
         );
       }
 
+      /*
+       * Adds value when internal rankings are more
+       * favorable than market ADP.
+       */
       const marketValue =
         getMarketValueScore(player);
 
