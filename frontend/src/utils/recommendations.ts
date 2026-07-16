@@ -12,6 +12,7 @@ interface ScoreResult {
 export interface RecommendationContext {
   currentOverallPick: number | null;
   picksUntilNextTurn: number | null;
+  recentDraftedPlayers?: Player[];
 }
 
 const starterTargets: Record<Position, number> = {
@@ -178,7 +179,7 @@ function getNextTurnUrgencyScore(
 
   /*
    * Prevents urgency from heavily boosting a player whose
-   * overall ranking is far below the current draft range.
+   * ranking is far below the current draft range.
    */
   if (player.overallRank > nextUserPick + 8) {
     score = Math.min(score, 6);
@@ -187,6 +188,82 @@ function getNextTurnUrgencyScore(
   return {
     score,
     reasons,
+  };
+}
+
+/**
+ * Scores a player when their position is being drafted rapidly.
+ */
+function getPositionRunScore(
+  player: Player,
+  context?: RecommendationContext,
+): ScoreResult {
+  if (
+    !context?.recentDraftedPlayers ||
+    context.recentDraftedPlayers.length < 2
+  ) {
+    return {
+      score: 0,
+      reasons: [],
+    };
+  }
+
+  /*
+   * Kicker and defense runs should not encourage early reaches.
+   */
+  if (
+    player.position === "K" ||
+    player.position === "DST"
+  ) {
+    return {
+      score: 0,
+      reasons: [],
+    };
+  }
+
+  const recentDraftWindow =
+    context.recentDraftedPlayers.slice(-6);
+
+  const recentPositionSelections =
+    recentDraftWindow.filter(
+      (draftedPlayer) =>
+        draftedPlayer.position === player.position,
+    ).length;
+
+  if (recentPositionSelections >= 4) {
+    return {
+      score: 10,
+      reasons: [
+        `${player.position} run is accelerating`,
+      ],
+    };
+  }
+
+  if (recentPositionSelections === 3) {
+    return {
+      score: 7,
+      reasons: [
+        `${player.position} run developing`,
+      ],
+    };
+  }
+
+  if (
+    recentPositionSelections === 2 &&
+    context.picksUntilNextTurn !== null &&
+    context.picksUntilNextTurn >= 8
+  ) {
+    return {
+      score: 4,
+      reasons: [
+        `${player.position} demand is rising`,
+      ],
+    };
+  }
+
+  return {
+    score: 0,
+    reasons: [],
   };
 }
 
@@ -261,7 +338,7 @@ function getTierDropScore(
 }
 
 /**
- * Scores players who rank better than their current market ADP.
+ * Scores players who rank better than their market ADP.
  */
 function getMarketValueScore(
   player: Player,
@@ -293,7 +370,7 @@ function getMarketValueScore(
 }
 
 /**
- * Ranks available players using value, roster need, and timing.
+ * Ranks players using value, roster need, timing, and draft trends.
  */
 export function getRecommendations(
   availablePlayers: Player[],
@@ -349,6 +426,14 @@ export function getRecommendations(
       score += urgency.score;
       reasons.push(...urgency.reasons);
 
+      const positionRun = getPositionRunScore(
+        player,
+        context,
+      );
+
+      score += positionRun.score;
+      reasons.push(...positionRun.reasons);
+
       const tierDrop = getTierDropScore(
         player,
         availablePlayers,
@@ -378,7 +463,7 @@ export function getRecommendations(
       return {
         playerId: player.id,
         score: Math.round(score * 10) / 10,
-        reasons: reasons.slice(0, 3),
+        reasons: reasons.slice(0, 4),
       };
     })
     .sort(

@@ -4,13 +4,14 @@ import { getRecommendations } from "../utils/recommendations";
 interface RecommendationsPanelProps {
   availablePlayers: Player[];
   userDraftedPlayers: Player[];
+  recentDraftedPlayers: Player[];
   currentOverallPick: number;
   picksUntilNextTurn: number | null;
   onDraftPlayer: (player: Player) => void;
 }
 
 /**
- * Creates compact initials when a player has no headshot.
+ * Creates initials when a player does not have a headshot.
  */
 function getPlayerInitials(playerName: string): string {
   return playerName
@@ -22,11 +23,12 @@ function getPlayerInitials(playerName: string): string {
 }
 
 /**
- * Displays the five best picks for the user's current turn.
+ * Displays the best available picks for the user's turn.
  */
 function RecommendationsPanel({
   availablePlayers,
   userDraftedPlayers,
+  recentDraftedPlayers,
   currentOverallPick,
   picksUntilNextTurn,
   onDraftPlayer,
@@ -38,6 +40,7 @@ function RecommendationsPanel({
     {
       currentOverallPick,
       picksUntilNextTurn,
+      recentDraftedPlayers,
     },
   );
 
@@ -84,8 +87,8 @@ function RecommendationsPanel({
 
       <p className="recommendations-description">
         Rankings account for player value, roster needs,
-        market ADP, and whether the player may survive until
-        your next turn.
+        market ADP, tier drops, recent positional runs, and
+        whether the player may survive until your next turn.
       </p>
 
       <div className="recommendation-list">
@@ -142,6 +145,7 @@ function RecommendationsPanel({
               <div className="recommendation-actions">
                 <div className="recommendation-score">
                   <span>Strategy score</span>
+
                   <strong>
                     {recommendation.score}
                   </strong>

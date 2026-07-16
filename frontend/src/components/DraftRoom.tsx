@@ -19,8 +19,12 @@ interface RecordedDraftPick {
   player: Player;
 }
 
-const draftOrderStorageKey = "thunderdraft-draft-order";
-const draftPicksStorageKey = "thunderdraft-draft-picks";
+const draftOrderStorageKey =
+  "thunderdraft-draft-order";
+
+const draftPicksStorageKey =
+  "thunderdraft-draft-picks";
+
 const totalDraftRounds = 15;
 
 /**
@@ -36,7 +40,8 @@ function loadSavedDraftOrder(): string[] {
       return [];
     }
 
-    const parsedOrder: unknown = JSON.parse(savedOrder);
+    const parsedOrder: unknown =
+      JSON.parse(savedOrder);
 
     if (
       !Array.isArray(parsedOrder) ||
@@ -56,7 +61,8 @@ function loadSavedDraftOrder(): string[] {
     );
 
     const containsEveryTeam =
-      new Set(parsedOrder).size === fantasyTeams.length;
+      new Set(parsedOrder).size ===
+      fantasyTeams.length;
 
     if (!allTeamsAreValid || !containsEveryTeam) {
       return [];
@@ -69,7 +75,7 @@ function loadSavedDraftOrder(): string[] {
 }
 
 /**
- * Loads and validates the saved draft selections.
+ * Loads and validates the saved draft picks.
  */
 function loadSavedDraftPicks(): RecordedDraftPick[] {
   try {
@@ -81,7 +87,8 @@ function loadSavedDraftPicks(): RecordedDraftPick[] {
       return [];
     }
 
-    const parsedPicks: unknown = JSON.parse(savedPicks);
+    const parsedPicks: unknown =
+      JSON.parse(savedPicks);
 
     if (!Array.isArray(parsedPicks)) {
       return [];
@@ -91,34 +98,46 @@ function loadSavedDraftPicks(): RecordedDraftPick[] {
       fantasyTeams.map((team) => team.id),
     );
 
-    const picksAreValid = parsedPicks.every((pick) => {
-      if (
-        typeof pick !== "object" ||
-        pick === null ||
-        !("id" in pick) ||
-        !("overallPick" in pick) ||
-        !("fantasyTeamId" in pick) ||
-        !("player" in pick)
-      ) {
-        return false;
-      }
+    const picksAreValid = parsedPicks.every(
+      (pick) => {
+        if (
+          typeof pick !== "object" ||
+          pick === null ||
+          !("id" in pick) ||
+          !("overallPick" in pick) ||
+          !("fantasyTeamId" in pick) ||
+          !("player" in pick)
+        ) {
+          return false;
+        }
 
-      const savedPick = pick as Partial<RecordedDraftPick>;
+        const savedPick =
+          pick as Partial<RecordedDraftPick>;
 
-      return (
-        typeof savedPick.id === "string" &&
-        typeof savedPick.overallPick === "number" &&
-        Number.isInteger(savedPick.overallPick) &&
-        savedPick.overallPick > 0 &&
-        typeof savedPick.fantasyTeamId === "string" &&
-        validTeamIds.has(savedPick.fantasyTeamId) &&
-        typeof savedPick.player === "object" &&
-        savedPick.player !== null &&
-        typeof savedPick.player.id === "string" &&
-        typeof savedPick.player.name === "string" &&
-        typeof savedPick.player.position === "string"
-      );
-    });
+        return (
+          typeof savedPick.id === "string" &&
+          typeof savedPick.overallPick ===
+            "number" &&
+          Number.isInteger(
+            savedPick.overallPick,
+          ) &&
+          savedPick.overallPick > 0 &&
+          typeof savedPick.fantasyTeamId ===
+            "string" &&
+          validTeamIds.has(
+            savedPick.fantasyTeamId,
+          ) &&
+          typeof savedPick.player === "object" &&
+          savedPick.player !== null &&
+          typeof savedPick.player.id ===
+            "string" &&
+          typeof savedPick.player.name ===
+            "string" &&
+          typeof savedPick.player.position ===
+            "string"
+        );
+      },
+    );
 
     if (!picksAreValid) {
       return [];
@@ -131,16 +150,15 @@ function loadSavedDraftPicks(): RecordedDraftPick[] {
 }
 
 /**
- * Displays and controls the live fantasy draft room.
+ * Displays and controls the live fantasy draft.
  */
 function DraftRoom() {
   const [draftPicks, setDraftPicks] = useState<
     RecordedDraftPick[]
   >(loadSavedDraftPicks);
 
-  const [draftOrder, setDraftOrder] = useState<string[]>(
-    loadSavedDraftOrder,
-  );
+  const [draftOrder, setDraftOrder] =
+    useState<string[]>(loadSavedDraftOrder);
 
   const [
     showDraftOrderSetup,
@@ -159,11 +177,13 @@ function DraftRoom() {
     );
   }, [draftPicks]);
 
-  const nextOverallPick = draftPicks.length + 1;
+  const nextOverallPick =
+    draftPicks.length + 1;
 
   const hasDraftOrder =
     draftOrder.length === fantasyTeams.length &&
-    new Set(draftOrder).size === fantasyTeams.length;
+    new Set(draftOrder).size ===
+      fantasyTeams.length;
 
   const currentDraftSlot = hasDraftOrder
     ? getFantasyTeamForPick(
@@ -179,7 +199,8 @@ function DraftRoom() {
       : manualFantasyTeamId;
 
   const activeFantasyTeam = fantasyTeams.find(
-    (team) => team.id === activeFantasyTeamId,
+    (team) =>
+      team.id === activeFantasyTeamId,
   );
 
   const isUserOnClock =
@@ -190,20 +211,25 @@ function DraftRoom() {
   );
 
   const availablePlayers = demoPlayers.filter(
-    (player) => !draftedPlayerIds.includes(player.id),
+    (player) =>
+      !draftedPlayerIds.includes(player.id),
   );
 
-  const userFantasyTeamId = fantasyTeams.find(
-    (team) => team.isUser,
-  )?.id;
+  const userFantasyTeamId =
+    fantasyTeams.find(
+      (team) => team.isUser,
+    )?.id;
 
   const userDraftSlot =
     hasDraftOrder && userFantasyTeamId
-      ? draftOrder.indexOf(userFantasyTeamId) + 1
+      ? draftOrder.indexOf(
+          userFantasyTeamId,
+        ) + 1
       : null;
 
   const userOverallPicks =
-    userDraftSlot !== null && userDraftSlot > 0
+    userDraftSlot !== null &&
+    userDraftSlot > 0
       ? getUserOverallPicks(
           userDraftSlot,
           fantasyTeams.length,
@@ -213,7 +239,8 @@ function DraftRoom() {
       : [];
 
   const picksUntilNextTurn =
-    isUserOnClock && userOverallPicks.length > 0
+    isUserOnClock &&
+    userOverallPicks.length > 0
       ? getPicksUntilNextTurn(
           nextOverallPick,
           userOverallPicks,
@@ -223,14 +250,22 @@ function DraftRoom() {
   const userDraftedPlayers = draftPicks
     .filter(
       (pick) =>
-        pick.fantasyTeamId === userFantasyTeamId,
+        pick.fantasyTeamId ===
+        userFantasyTeamId,
     )
     .map((pick) => pick.player);
 
+  // Provides the latest six picks for positional-run analysis.
+  const recentDraftedPlayers = draftPicks
+    .slice(-6)
+    .map((pick) => pick.player);
+
   /**
-   * Saves a complete league draft order.
+   * Saves the league's selected draft order.
    */
-  function saveDraftOrder(teamIds: string[]) {
+  function saveDraftOrder(
+    teamIds: string[],
+  ) {
     setDraftOrder(teamIds);
 
     localStorage.setItem(
@@ -242,7 +277,7 @@ function DraftRoom() {
   }
 
   /**
-   * Records a player for the manager currently on the clock.
+   * Records a player for the team on the clock.
    */
   function draftPlayer(player: Player) {
     const newPick: RecordedDraftPick = {
@@ -259,7 +294,7 @@ function DraftRoom() {
   }
 
   /**
-   * Removes the most recently recorded selection.
+   * Removes the most recent draft pick.
    */
   function undoLastPick() {
     setDraftPicks((currentPicks) =>
@@ -268,7 +303,7 @@ function DraftRoom() {
   }
 
   /**
-   * Clears every pick while preserving the draft order.
+   * Clears all picks while keeping the draft order.
    */
   function resetDraft() {
     const confirmed = window.confirm(
@@ -280,13 +315,18 @@ function DraftRoom() {
     }
 
     setDraftPicks([]);
-    localStorage.removeItem(draftPicksStorageKey);
+
+    localStorage.removeItem(
+      draftPicksStorageKey,
+    );
   }
 
   return (
     <section
       className={`draft-room ${
-        isUserOnClock ? "user-on-clock" : ""
+        isUserOnClock
+          ? "user-on-clock"
+          : ""
       }`}
     >
       <div className="section-heading">
@@ -303,7 +343,8 @@ function DraftRoom() {
             className="secondary-button compact-button"
             onClick={() =>
               setShowDraftOrderSetup(
-                (currentValue) => !currentValue,
+                (currentValue) =>
+                  !currentValue,
               )
             }
             type="button"
@@ -321,7 +362,9 @@ function DraftRoom() {
 
           <button
             className="secondary-button compact-button reset-draft-button"
-            disabled={draftPicks.length === 0}
+            disabled={
+              draftPicks.length === 0
+            }
             onClick={resetDraft}
             type="button"
           >
@@ -330,7 +373,9 @@ function DraftRoom() {
 
           <button
             className="secondary-button compact-button"
-            disabled={draftPicks.length === 0}
+            disabled={
+              draftPicks.length === 0
+            }
             onClick={undoLastPick}
             type="button"
           >
@@ -349,7 +394,8 @@ function DraftRoom() {
       <div className="on-clock-card">
         <div className="on-clock-manager">
           <span className="on-clock-emoji">
-            {activeFantasyTeam?.emoji ?? "🏈"}
+            {activeFantasyTeam?.emoji ??
+              "🏈"}
           </span>
 
           <div>
@@ -368,16 +414,21 @@ function DraftRoom() {
 
         {hasDraftOrder ? (
           <div className="automatic-order-status">
-            <span>Automatic snake order</span>
+            <span>
+              Automatic snake order
+            </span>
 
             <strong>
-              Draft slot {currentDraftSlot} · Pick{" "}
+              Draft slot{" "}
+              {currentDraftSlot} · Pick{" "}
               {nextOverallPick}
             </strong>
           </div>
         ) : (
           <label className="field-group manager-picker">
-            <span>Select league member</span>
+            <span>
+              Select league member
+            </span>
 
             <select
               onChange={(event) =>
@@ -393,7 +444,9 @@ function DraftRoom() {
                   value={team.id}
                 >
                   {team.emoji} {team.name}
-                  {team.isUser ? " — You" : ""}
+                  {team.isUser
+                    ? " — You"
+                    : ""}
                 </option>
               ))}
             </select>
@@ -427,17 +480,30 @@ function DraftRoom() {
 
       {isUserOnClock && (
         <RecommendationsPanel
-          availablePlayers={availablePlayers}
-          currentOverallPick={nextOverallPick}
-          picksUntilNextTurn={picksUntilNextTurn}
-          userDraftedPlayers={userDraftedPlayers}
+          availablePlayers={
+            availablePlayers
+          }
+          currentOverallPick={
+            nextOverallPick
+          }
+          picksUntilNextTurn={
+            picksUntilNextTurn
+          }
+          recentDraftedPlayers={
+            recentDraftedPlayers
+          }
+          userDraftedPlayers={
+            userDraftedPlayers
+          }
           onDraftPlayer={draftPlayer}
         />
       )}
 
       <div className="draft-room-layout">
         <PlayerBoard
-          draftedPlayerIds={draftedPlayerIds}
+          draftedPlayerIds={
+            draftedPlayerIds
+          }
           isUserOnClock={isUserOnClock}
           onDraftPlayer={draftPlayer}
         />
@@ -465,8 +531,9 @@ function DraftRoom() {
                 </strong>
 
                 <span>
-                  Select a player from the board to
-                  record the next pick.
+                  Select a player from the
+                  board to record the next
+                  pick.
                 </span>
               </div>
             ) : (
@@ -522,7 +589,9 @@ function DraftRoom() {
             )}
           </aside>
 
-          <MyRoster players={userDraftedPlayers} />
+          <MyRoster
+            players={userDraftedPlayers}
+          />
         </div>
       </div>
     </section>
