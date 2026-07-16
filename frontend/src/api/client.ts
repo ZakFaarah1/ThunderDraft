@@ -1,4 +1,5 @@
 import type {
+  ApiDraftPlayerListResponse,
   ApiPlayerHistoryResponse,
   ApiPlayerListResponse,
   ApiPlayerStatsListResponse,
@@ -97,6 +98,20 @@ export function fetchPlayerHistory(
 
   return fetchJson<ApiPlayerHistoryResponse>(
     `/stats/players/${encodedPlayerId}/history`,
+    signal,
+  );
+}
+
+
+
+/**
+ * Loads the filtered upcoming-season fantasy draft pool.
+ */
+export function fetchDraftPlayers(
+  signal?: AbortSignal,
+): Promise<ApiDraftPlayerListResponse> {
+  return fetchJson<ApiDraftPlayerListResponse>(
+    "/draft/players",
     signal,
   );
 }

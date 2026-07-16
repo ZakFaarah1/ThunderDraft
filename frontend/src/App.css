@@ -3480,3 +3480,143 @@ button {
       repeat(2, minmax(0, 1fr));
   }
 }
+
+
+
+/* Aligns player names with optional rookie indicators. */
+.player-name-line {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+/* Highlights players entering their first NFL season. */
+.rookie-badge {
+  background: rgba(250, 204, 21, 0.14);
+  border: 1px solid rgba(250, 204, 21, 0.55);
+  border-radius: 999px;
+  color: #facc15;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 0.18rem 0.45rem;
+  text-transform: uppercase;
+}
+
+/* Displays the player's ranking within the rookie class. */
+.rookie-rank-label {
+  color: #facc15;
+  display: block;
+  font-size: 0.75rem;
+  margin-top: 0.2rem;
+}
+
+
+
+/* Displays loading and source coverage for the real draft pool. */
+.draft-pool-status {
+  align-items: center;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(26, 26, 26, 0.96),
+      rgba(7, 7, 7, 0.96)
+    );
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  border-radius: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+}
+
+.draft-pool-status strong {
+  color: #facc15;
+}
+
+.draft-pool-status span {
+  color: rgba(245, 245, 245, 0.76);
+  font-size: 0.86rem;
+}
+
+/* Highlights a failed player-pool request. */
+.draft-pool-error {
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.draft-pool-error strong {
+  color: #f87171;
+}
+
+
+/* Makes player names open the profile without recording a pick. */
+.draft-player-name-button {
+  background: transparent;
+  border: 0;
+  color: #f5f5f5;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 0;
+  text-align: left;
+}
+
+/* Highlights clickable player names. */
+.draft-player-name-button:hover,
+.draft-player-name-button:focus-visible {
+  color: #facc15;
+  outline: none;
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+
+/* Labels values inside historical season rows. */
+.draft-history-stat {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+/* Styles historical-season labels. */
+.draft-history-stat span {
+  color: #a3a3a3;
+  font-size: 0.68rem;
+}
+
+/* Keeps historical values readable. */
+.draft-history-stat strong {
+  color: #f5f5f5;
+  overflow-wrap: anywhere;
+}
+
+/* Keeps profile actions visible at the bottom of the popup. */
+.draft-modal-actions {
+  align-items: center;
+  background: rgba(10, 10, 10, 0.98);
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  bottom: 0;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding: 1rem 1.25rem;
+  position: sticky;
+}
+
+/* Prevents popup action buttons from becoming oversized. */
+.draft-modal-actions button {
+  min-width: 8.5rem;
+}
+
+/*
+ * Keeps the available-player board and My Roster
+ * together in the main left column.
+ */
+.draft-main-column {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  min-width: 0;
+}

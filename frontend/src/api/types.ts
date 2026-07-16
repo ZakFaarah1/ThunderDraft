@@ -1,4 +1,7 @@
-import type { Position } from "../types";
+import type {
+  Position,
+  ProjectionConfidence,
+} from "../types";
 
 export type OffensivePosition =
   | "QB"
@@ -109,4 +112,69 @@ export interface ApiPlayerHistoryResponse {
   availableSeasons: number[];
   summary: ApiPlayerHistorySummary;
   seasons: ApiPlayerSeasonStats[];
+}
+
+
+export interface ApiDraftPlayer {
+  id: string;
+  name: string;
+  nflTeam: string;
+  position: Position;
+
+  active: boolean;
+  status: string | null;
+  injuryStatus: string | null;
+  depthChartPosition: string | null;
+  depthChartOrder: number | null;
+  yearsExperience: number | null;
+
+  isRookie: boolean;
+  rookieRank: number | null;
+
+  gsisId: string | null;
+  espnId: string | null;
+  imageUrl: string | null;
+  fallbackImageUrl: string | null;
+
+  draftSeason: number;
+  byeWeek: number | null;
+
+  marketRank: number | null;
+  marketPositionRank: number | null;
+  adp: number | null;
+  adpFormatted: string | null;
+  adpHigh: number | null;
+  adpLow: number | null;
+  adpStandardDeviation: number | null;
+  timesDrafted: number | null;
+
+  projectedPoints: number | null;
+  projectionSource: string | null;
+  projectionConfidence: ProjectionConfidence | null;
+
+  thunderDraftRank: number | null;
+  tier: number | null;
+}
+
+export interface ApiDraftPlayerListResponse {
+  source: string;
+  draftSeason: number;
+  scoringFormat: string;
+  teamCount: number;
+
+  playerCount: number;
+  rookieCount: number;
+  projectedRookieCount: number;
+  excludedCandidateCount: number;
+
+  adpSourcePlayerCount: number;
+  matchedAdpPlayerCount: number;
+  unmatchedAdpCount: number;
+  unmatchedAdpPlayers: string[];
+
+  cachedAt: string;
+  cacheExpiresAt: string;
+  stale: boolean;
+
+  players: ApiDraftPlayer[];
 }

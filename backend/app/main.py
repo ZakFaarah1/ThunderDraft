@@ -1,3 +1,5 @@
+from app.services.draft_players import get_draft_players
+from app.models.draft import DraftPlayerListResponse
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -112,6 +114,27 @@ async def list_players(
     """Returns fantasy-relevant players from the server cache."""
 
     return await get_nfl_players(
+        force_refresh=refresh,
+    )
+
+
+# Returns the complete upcoming-season draft pool.
+@app.get(
+    "/api/draft/players",
+    response_model=DraftPlayerListResponse,
+)
+async def list_draft_players(
+    refresh: bool = Query(
+        default=False,
+        description=(
+            "Force a refresh of Sleeper and "
+            "the 2026 ADP source."
+        ),
+    ),
+) -> DraftPlayerListResponse:
+    """Returns all draftable players with optional market ADP."""
+
+    return await get_draft_players(
         force_refresh=refresh,
     )
 

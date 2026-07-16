@@ -8,6 +8,9 @@ services:
       # Tells FastAPI where to store persistent NFL cache files.
       THUNDERDRAFT_CACHE_DIR: /app/data/cache
 
+      # Selects the upcoming fantasy football draft season.
+      THUNDERDRAFT_DRAFT_SEASON: ${THUNDERDRAFT_DRAFT_SEASON:-2026}
+
     volumes:
       # Maps the Ubuntu data folder into the backend container.
       - ./backend/data:/app/data

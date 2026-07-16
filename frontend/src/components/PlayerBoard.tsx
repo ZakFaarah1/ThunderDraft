@@ -1,17 +1,28 @@
 import { useMemo, useState } from "react";
-import { demoPlayers } from "../data/players";
-import type { Player, Position } from "../types";
 
-type PositionFilter = "ALL" | Position;
+import type {
+  Player,
+  Position,
+} from "../types";
+
+import DraftPlayerDetailsModal from "./DraftPlayerDetailsModal";
+
+
+type PlayerFilter =
+  | "ALL"
+  | "ROOKIES"
+  | Position;
 
 interface PlayerBoardProps {
+  players: Player[];
   draftedPlayerIds: string[];
   isUserOnClock: boolean;
   onDraftPlayer: (player: Player) => void;
 }
 
-const positionFilters: PositionFilter[] = [
+const playerFilters: PlayerFilter[] = [
   "ALL",
+  "ROOKIES",
   "QB",
   "RB",
   "WR",
@@ -20,28 +31,50 @@ const positionFilters: PositionFilter[] = [
   "DST",
 ];
 
+
+/**
+ * Displays and filters the currently available draft pool.
+ */
 function PlayerBoard({
+  players,
   draftedPlayerIds,
   isUserOnClock,
   onDraftPlayer,
 }: PlayerBoardProps) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [positionFilter, setPositionFilter] =
-    useState<PositionFilter>("ALL");
+  const [searchTerm, setSearchTerm] =
+    useState("");
+
+  const [
+    playerFilter,
+    setPlayerFilter,
+  ] = useState<PlayerFilter>("ALL");
+
+  const [
+    selectedPlayer,
+    setSelectedPlayer,
+  ] = useState<Player | null>(null);
 
   const availablePlayers = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const normalizedSearch =
+      searchTerm.trim().toLowerCase();
 
-    return demoPlayers
+    return players
       .filter(
-        (player) => !draftedPlayerIds.includes(player.id),
+        (player) =>
+          !draftedPlayerIds.includes(
+            player.id,
+          ),
       )
       .filter((player) => {
-        if (positionFilter === "ALL") {
+        if (playerFilter === "ALL") {
           return true;
         }
 
-        return player.position === positionFilter;
+        if (playerFilter === "ROOKIES") {
+          return player.isRookie === true;
+        }
+
+        return player.position === playerFilter;
       })
       .filter((player) => {
         if (!normalizedSearch) {
@@ -65,14 +98,45 @@ function PlayerBoard({
           firstPlayer.overallRank -
           secondPlayer.overallRank,
       );
-  }, [draftedPlayerIds, positionFilter, searchTerm]);
+  }, [
+    draftedPlayerIds,
+    playerFilter,
+    players,
+    searchTerm,
+  ]);
+
+  /**
+   * Opens one player's complete draft profile.
+   */
+  function openPlayerDetails(
+    player: Player,
+  ) {
+    setSelectedPlayer(player);
+  }
+
+
+  /**
+   * Closes the current player profile.
+   */
+  function closePlayerDetails() {
+    setSelectedPlayer(null);
+  }
+
 
   return (
-    <section className="player-board">
+    <>
+      <section className="player-board">
       <div className="player-board-header">
         <div>
-          <p className="eyebrow">Available player pool</p>
-          <h3>Best Available</h3>
+          <p className="eyebrow">
+            Available player pool
+          </p>
+
+          <h3>
+            {playerFilter === "ROOKIES"
+              ? "2026 Rookies"
+              : "Best Available"}
+          </h3>
         </div>
 
         <span className="available-count">
@@ -82,11 +146,15 @@ function PlayerBoard({
 
       <div className="player-board-controls">
         <label className="player-search">
-          <span className="sr-only">Search players</span>
+          <span className="sr-only">
+            Search players
+          </span>
 
           <input
             onChange={(event) =>
-              setSearchTerm(event.target.value)
+              setSearchTerm(
+                event.target.value,
+              )
             }
             placeholder="Search player, team, or position..."
             type="search"
@@ -95,21 +163,23 @@ function PlayerBoard({
         </label>
 
         <div
-          aria-label="Filter players by position"
+          aria-label="Filter available players"
           className="position-filters"
         >
-          {positionFilters.map((position) => (
+          {playerFilters.map((filter) => (
             <button
               className={
-                positionFilter === position
+                playerFilter === filter
                   ? "position-filter active-position-filter"
                   : "position-filter"
               }
-              key={position}
-              onClick={() => setPositionFilter(position)}
+              key={filter}
+              onClick={() =>
+                setPlayerFilter(filter)
+              }
               type="button"
             >
-              {position}
+              {filter}
             </button>
           ))}
         </div>
@@ -120,7 +190,7 @@ function PlayerBoard({
           <strong>No players found</strong>
 
           <span>
-            Change the search or position filter.
+            Change the search or player filter.
           </span>
         </div>
       ) : (
@@ -145,7 +215,10 @@ function PlayerBoard({
                   <span aria-hidden="true">
                     {player.name
                       .split(" ")
-                      .map((namePart) => namePart[0])
+                      .map(
+                        (namePart) =>
+                          namePart[0],
+                      )
                       .join("")
                       .slice(0, 2)}
                   </span>
@@ -153,49 +226,99 @@ function PlayerBoard({
               </div>
 
               <div className="available-player-details">
-                <strong>{player.name}</strong>
+                <div className="player-name-line">
+                  <button
+                    className="draft-player-name-button"
+                    onClick={() =>
+                      openPlayerDetails(player)
+                    }
+                    type="button"
+                  >
+                    {player.name}
+                  </button>
+
+                  {player.isRookie && (
+                    <span className="rookie-badge">
+                      Rookie
+                    </span>
+                  )}
+                </div>
 
                 <span>
-                  {player.position} · {player.nflTeam} ·{" "}
+                  {player.position} ·{" "}
+                  {player.nflTeam} ·{" "}
                   {player.position}
                   {player.positionRank}
                 </span>
+
+                {player.isRookie &&
+                  player.rookieRank !== null &&
+                  player.rookieRank !==
+                    undefined && (
+                    <span className="rookie-rank-label">
+                      Rookie rank #
+                      {player.rookieRank}
+                    </span>
+                  )}
               </div>
 
               <div className="player-metrics">
                 <div>
                   <span>Tier</span>
-                  <strong>{player.tier}</strong>
+                  <strong>
+                    {player.tier}
+                  </strong>
                 </div>
 
                 <div>
                   <span>ADP</span>
                   <strong>
-                    {player.adp?.toFixed(1) ?? "—"}
+                    {player.adp?.toFixed(1) ??
+                      "—"}
                   </strong>
                 </div>
 
                 <div>
-                  <span>Proj.</span>
+                  <span>
+                    {player.isRookie
+                      ? "Est. 2026"
+                      : "Proj."}
+                  </span>
+
                   <strong>
-                    {player.projectedPoints?.toFixed(1) ??
-                      "—"}
+                    {player.projectedPoints?.toFixed(
+                      1,
+                    ) ?? "—"}
                   </strong>
                 </div>
               </div>
 
               <button
                 className="draft-player-button"
-                onClick={() => onDraftPlayer(player)}
+                onClick={() =>
+                  onDraftPlayer(player)
+                }
                 type="button"
               >
-                {isUserOnClock ? "Select Pick" : "Drafted"}
+                {isUserOnClock
+                  ? "Select Pick"
+                  : "Drafted"}
               </button>
             </article>
           ))}
         </div>
       )}
-    </section>
+      </section>
+
+      {selectedPlayer && (
+        <DraftPlayerDetailsModal
+          isUserOnClock={isUserOnClock}
+          onClose={closePlayerDetails}
+          onDraftPlayer={onDraftPlayer}
+          player={selectedPlayer}
+        />
+      )}
+    </>
   );
 }
 

@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 
 import { fantasyTeams } from "../data/league";
-import { demoPlayers } from "../data/players";
+import { fetchDraftPlayers } from "../api/client";
+import { mapApiDraftPlayers } from "../api/draftPlayers";
+
+import type {
+  ApiDraftPlayerListResponse,
+} from "../api/types";
 
 import type {
   Player,
@@ -36,7 +41,7 @@ const draftOrderStorageKey =
   "thunderdraft-draft-order";
 
 const draftPicksStorageKey =
-  "thunderdraft-draft-picks";
+  "thunderdraft-draft-picks-v2";
 
 const totalDraftRounds = 15;
 
@@ -233,6 +238,87 @@ function DraftRoom() {
     setManualFantasyTeamId,
   ] = useState(fantasyTeams[0].id);
 
+  const [
+    draftPlayers,
+    setDraftPlayers,
+  ] = useState<Player[]>([]);
+
+  const [
+    draftPoolResponse,
+    setDraftPoolResponse,
+  ] =
+    useState<ApiDraftPlayerListResponse | null>(
+      null,
+    );
+
+  const [
+    draftPoolLoading,
+    setDraftPoolLoading,
+  ] = useState(true);
+
+  const [
+    draftPoolError,
+    setDraftPoolError,
+  ] = useState<string | null>(null);
+
+  /**
+   * Loads and maps the real 2026 player pool.
+   */
+  useEffect(() => {
+    const controller =
+      new AbortController();
+
+    /**
+     * Retrieves the current cached backend draft pool.
+     */
+    async function loadDraftPlayers() {
+      try {
+        setDraftPoolLoading(true);
+        setDraftPoolError(null);
+
+        const response =
+          await fetchDraftPlayers(
+            controller.signal,
+          );
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setDraftPlayers(
+          mapApiDraftPlayers(
+            response.players,
+          ),
+        );
+
+        setDraftPoolResponse(response);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setDraftPlayers([]);
+        setDraftPoolResponse(null);
+
+        setDraftPoolError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load the 2026 draft pool.",
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setDraftPoolLoading(false);
+        }
+      }
+    }
+
+    void loadDraftPlayers();
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
   /*
    * Saves draft selections whenever the recorded picks change.
    */
@@ -276,7 +362,7 @@ function DraftRoom() {
     (pick) => pick.player.id,
   );
 
-  const availablePlayers = demoPlayers.filter(
+  const availablePlayers = draftPlayers.filter(
     (player) =>
       !draftedPlayerIds.includes(player.id),
   );
@@ -579,14 +665,62 @@ function DraftRoom() {
         />
       )}
 
+      {draftPoolLoading && (
+        <div className="draft-pool-status">
+          <strong>
+            Loading 2026 draft pool…
+          </strong>
+
+          <span>
+            Retrieving players, rookies, and ADP.
+          </span>
+        </div>
+      )}
+
+      {draftPoolError && (
+        <div className="draft-pool-status draft-pool-error">
+          <strong>
+            Draft pool unavailable
+          </strong>
+
+          <span>{draftPoolError}</span>
+        </div>
+      )}
+
+      {!draftPoolLoading &&
+        !draftPoolError &&
+        draftPoolResponse && (
+          <div className="draft-pool-status">
+            <strong>
+              {draftPoolResponse.draftSeason} half-PPR pool
+            </strong>
+
+            <span>
+              {draftPoolResponse.playerCount} players ·{" "}
+              {draftPoolResponse.rookieCount} rookies ·{" "}
+              {draftPoolResponse.matchedAdpPlayerCount} ADP matches
+              {draftPoolResponse.stale
+                ? " · cached fallback"
+                : ""}
+            </span>
+          </div>
+        )}
+
       <div className="draft-room-layout">
-        <PlayerBoard
-          draftedPlayerIds={
-            draftedPlayerIds
-          }
-          isUserOnClock={isUserOnClock}
-          onDraftPlayer={draftPlayer}
-        />
+        <div className="draft-main-column">
+          <PlayerBoard
+          players={draftPlayers}
+            draftedPlayerIds={
+              draftedPlayerIds
+            }
+            isUserOnClock={isUserOnClock}
+            onDraftPlayer={draftPlayer}
+          />
+
+          <MyRoster
+            players={userDraftedPlayers}
+          />
+        </div>
 
         <div className="draft-sidebar">
           <aside
@@ -819,10 +953,6 @@ function DraftRoom() {
               </div>
             )}
           </aside>
-
-          <MyRoster
-            players={userDraftedPlayers}
-          />
         </div>
       </div>
     </section>
