@@ -7,7 +7,7 @@ function App() {
   const [apiStatus, setApiStatus] = useState<ApiStatus>("checking");
 
   useEffect(() => {
-    const apiUrl = `http://${window.location.hostname}:8001/api/health`;
+    const apiUrl = "/api/health";
 
     fetch(apiUrl)
       .then((response) => {
