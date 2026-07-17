@@ -163,6 +163,11 @@ export interface ApiDraftPlayerListResponse {
   teamCount: number;
 
   playerCount: number;
+  candidatePlayerCount: number;
+  freeAgentCount: number;
+  withoutAdpCount: number;
+  withoutProjectionCount: number;
+  excludedNonFantasyPositionCount: number;
   rookieCount: number;
   projectedRookieCount: number;
   excludedCandidateCount: number;

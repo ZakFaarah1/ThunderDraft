@@ -3620,3 +3620,14 @@ button {
   align-content: start;
   min-width: 0;
 }
+
+/*
+ * Shows when the server last downloaded player data.
+ */
+.draft-data-updated {
+  display: block;
+  flex-basis: 100%;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  opacity: 0.72;
+}

@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+
+NETWORK_NAME="thunderdraft-prod_default"
+NETWORK_ID=""
+
+
+# Waits for Docker Compose to create the production network.
+for _ in $(seq 1 30)
+do
+    NETWORK_ID="$(
+        docker network inspect \
+          "$NETWORK_NAME" \
+          --format '{{.Id}}' \
+          2>/dev/null \
+        || true
+    )"
+
+    if [ -n "$NETWORK_ID" ]
+    then
+        break
+    fi
+
+    sleep 1
+done
+
+
+if [ -z "$NETWORK_ID" ]
+then
+    echo "ThunderDraft Docker network was not found." >&2
+    exit 1
+fi
+
+
+BRIDGE="br-${NETWORK_ID:0:12}"
+
+
+# Adds one firewall rule only when it does not already exist.
+ensure_rule() {
+    if ! iptables -C DOCKER-USER \
+      "$@" \
+      2>/dev/null
+    then
+        iptables -I DOCKER-USER 1 \
+          "$@"
+    fi
+}
+
+
+# Allows frontend-to-backend communication.
+ensure_rule \
+  -i "$BRIDGE" \
+  -o "$BRIDGE" \
+  -j ACCEPT
+
+# Allows ThunderDraft containers to access external data sources.
+ensure_rule \
+  -i "$BRIDGE" \
+  ! -o "$BRIDGE" \
+  -j ACCEPT
+
+# Allows responses back into ThunderDraft containers.
+ensure_rule \
+  -o "$BRIDGE" \
+  -m conntrack \
+  --ctstate RELATED,ESTABLISHED \
+  -j ACCEPT
+
+echo "ThunderDraft firewall ready on $BRIDGE"

@@ -2,36 +2,62 @@ services:
   backend:
     build:
       context: ./backend
+
     restart: unless-stopped
 
     environment:
-      # Tells FastAPI where to store persistent NFL cache files.
+      # Stores downloaded NFL data in the persistent Ubuntu folder.
       THUNDERDRAFT_CACHE_DIR: /app/data/cache
 
-      # Selects the upcoming fantasy football draft season.
+      # Selects the upcoming fantasy-football season.
       THUNDERDRAFT_DRAFT_SEASON: ${THUNDERDRAFT_DRAFT_SEASON:-2026}
 
     volumes:
-      # Maps the Ubuntu data folder into the backend container.
+      # Keeps caches and future database files across container rebuilds.
       - ./backend/data:/app/data
 
+    healthcheck:
+      # Uses Python because the slim backend image does not include curl.
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
     logging:
-      # Prevents Docker logs from growing indefinitely.
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
 
-    ports:
-      - "8001:8000"
-
   frontend:
     build:
       context: ./frontend
+
     restart: unless-stopped
 
+    depends_on:
+      backend:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1/ >/dev/null || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
     logging:
-      # Keeps a limited number of frontend log files.
       driver: json-file
       options:
         max-size: "10m"
@@ -39,6 +65,3 @@ services:
 
     ports:
       - "5050:80"
-
-    depends_on:
-      - backend

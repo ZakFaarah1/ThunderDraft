@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+PROJECT_DIR="/home/thundero/projects/thunderdraft"
+COMPOSE="/snap/bin/docker-compose"
+DOCKER="/usr/bin/docker"
+
+export COMPOSE_PROJECT_NAME="thunderdraft-prod"
+
+cd "$PROJECT_DIR"
+
+
+# Waits until the Snap Docker API is responsive.
+for attempt in $(seq 1 60)
+do
+    if "$DOCKER" info >/dev/null 2>&1
+    then
+        break
+    fi
+
+    echo "Waiting for Docker: $attempt/60"
+    sleep 2
+done
+
+if ! "$DOCKER" info >/dev/null 2>&1
+then
+    echo "Docker did not become available." >&2
+    exit 1
+fi
+
+
+# Gives Docker time to finish restoring container storage and networks.
+sleep 20
+
+
+# Retries the stack because Snap Docker may still be completing boot recovery.
+for attempt in $(seq 1 12)
+do
+    echo "ThunderDraft startup attempt: $attempt/12"
+
+    "$COMPOSE" up -d --no-recreate || true
+
+    # Reapplies ThunderDraft's bridge firewall rules.
+    /usr/local/sbin/thunderdraft-firewall || true
+
+    # Starts any existing container that Docker left stopped during boot.
+    for service in backend frontend
+    do
+        container_id="$(
+            "$COMPOSE" ps -q "$service" 2>/dev/null \
+            | head -n 1
+        )"
+
+        if [ -n "$container_id" ]
+        then
+            "$DOCKER" start "$container_id" >/dev/null 2>&1 || true
+        fi
+    done
+
+    if curl -fsS \
+        http://127.0.0.1:5050/api/health \
+        >/dev/null 2>&1
+    then
+        echo "ThunderDraft frontend and backend are ready."
+        exit 0
+    fi
+
+    sleep 10
+done
+
+
+echo "ThunderDraft did not become healthy." >&2
+
+"$COMPOSE" ps || true
+
+exit 1

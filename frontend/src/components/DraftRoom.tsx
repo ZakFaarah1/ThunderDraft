@@ -703,6 +703,23 @@ function DraftRoom() {
                 ? " · cached fallback"
                 : ""}
             </span>
+            <span className="draft-data-updated">
+              Player data updated:{" "}
+              {new Intl.DateTimeFormat(
+                "en-US",
+                {
+                  dateStyle: "long",
+                  timeStyle: "short",
+                },
+              ).format(
+                new Date(
+                  draftPoolResponse.cachedAt,
+                ),
+              )}
+              {draftPoolResponse.stale
+                ? " · Cached fallback"
+                : ""}
+            </span>
           </div>
         )}
 

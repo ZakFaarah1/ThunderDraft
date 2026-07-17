@@ -367,7 +367,7 @@ def has_relevant_rookie_role(
 def is_draftable_player(
     player: NflPlayer,
 ) -> bool:
-    """Keeps active, current-team fantasy players."""
+    """Keeps every active current-team fantasy-position player."""
 
     return (
         player.active
@@ -383,36 +383,13 @@ def should_include_player(
     player: NflPlayer,
     adp_record: dict[str, Any] | None,
 ) -> bool:
-    """Keeps market-ranked and fantasy-relevant players."""
+    """Keeps every valid candidate regardless of market-data coverage."""
 
-    position = get_player_position(
-        player,
-    )
+    # ADP affects ordering and rankings, never player inclusion.
+    _ = player
+    _ = adp_record
 
-    if position == "DST":
-        return True
-
-    if position == "K":
-        return (
-            adp_record is not None
-            or player.depthChartOrder == 1
-            or get_search_rank(player)
-            <= VETERAN_SEARCH_RANK_CUTOFF
-        )
-
-    if is_rookie(player):
-        return (
-            adp_record is not None
-            or get_search_rank(player)
-            <= ROOKIE_SEARCH_RANK_CUTOFF
-            or has_relevant_rookie_role(player)
-        )
-
-    return (
-        adp_record is not None
-        or get_search_rank(player)
-        <= VETERAN_SEARCH_RANK_CUTOFF
-    )
+    return True
 
 
 # Returns a conservative projection baseline for a rookie's role.
@@ -1420,6 +1397,9 @@ async def get_draft_players(
         scoringFormat=DRAFT_SCORING_FORMAT,
         teamCount=DRAFT_TEAM_COUNT,
         playerCount=len(merged_players),
+        candidatePlayerCount=len(
+            candidate_players,
+        ),
         rookieCount=len(rookie_players),
         projectedRookieCount=sum(
             1
@@ -1432,6 +1412,37 @@ async def get_draft_players(
         excludedCandidateCount=(
             len(candidate_players)
             - len(included_players)
+        ),
+        freeAgentCount=sum(
+            1
+            for player in included_players
+            if normalize_team(
+                player.nflTeam,
+            )
+            in {
+                "",
+                "FA",
+            }
+        ),
+        withoutAdpCount=sum(
+            1
+            for player in included_players
+            if player.id not in matched_adp
+        ),
+        withoutProjectionCount=sum(
+            1
+            for player in merged_players
+            if player.projectedPoints is None
+        ),
+        excludedNonFantasyPositionCount=sum(
+            1
+            for player in sleeper_response.players
+            if (
+                player.active
+                and bool(player.name.strip())
+                and get_player_position(player)
+                not in SUPPORTED_POSITIONS
+            )
         ),
         adpSourcePlayerCount=len(
             adp_source_players,

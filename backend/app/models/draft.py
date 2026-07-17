@@ -57,9 +57,15 @@ class DraftPlayerListResponse(BaseModel):
     teamCount: int
 
     playerCount: int
+    candidatePlayerCount: int
     rookieCount: int
     projectedRookieCount: int
     excludedCandidateCount: int
+
+    freeAgentCount: int
+    withoutAdpCount: int
+    withoutProjectionCount: int
+    excludedNonFantasyPositionCount: int
 
     adpSourcePlayerCount: int
     matchedAdpPlayerCount: int

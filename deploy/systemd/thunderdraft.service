@@ -1,0 +1,20 @@
+[Unit]
+Description=ThunderDraft Fantasy Football Application
+Requires=snap.docker.dockerd.service
+Wants=network-online.target tailscaled.service
+After=snap.docker.dockerd.service network-online.target tailscaled.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/thundero/projects/thunderdraft
+
+ExecStart=/usr/local/sbin/thunderdraft-start
+
+TimeoutStartSec=600
+Restart=on-failure
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target
