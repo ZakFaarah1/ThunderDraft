@@ -1,3 +1,8 @@
+import {
+  FANTASY_ROSTER_LIMIT,
+  isFantasyTeamRosterFull,
+} from "../utils/rosterLimits";
+
 import { useEffect, useState } from "react";
 
 import { fantasyTeams } from "../data/league";
@@ -446,6 +451,31 @@ function DraftRoom() {
    * Records a player for the team currently on the clock.
    */
   function draftPlayer(player: Player) {
+    if (!activeFantasyTeamId) {
+      window.alert(
+        "Select a fantasy team before drafting a player.",
+      );
+
+      return;
+    }
+
+    if (
+      isFantasyTeamRosterFull(
+        draftPicks,
+        activeFantasyTeamId,
+      )
+    ) {
+      window.alert(
+        `Roster full: each team is limited to ${FANTASY_ROSTER_LIMIT} players.`,
+      );
+
+      return;
+    }
+
+    if (draftedPlayerIds.includes(player.id)) {
+      return;
+    }
+
     const newPick: RecordedDraftPick = {
       id: `${Date.now()}-${player.id}`,
       overallPick: nextOverallPick,
