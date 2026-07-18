@@ -3824,3 +3824,43 @@ button {
     width: 100%;
   }
 }
+
+/*
+ * Shows whether the active draft is protected by SQLite
+ * or temporarily relying on the browser backup.
+ */
+.draft-sync-badge {
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 700;
+  min-height: 2rem;
+  padding: 0.35rem 0.75rem;
+  white-space: nowrap;
+}
+
+.draft-sync-saving {
+  background: rgba(255, 213, 41, 0.08);
+  color: #ffe270;
+}
+
+.draft-sync-saved {
+  background: rgba(79, 193, 120, 0.1);
+  border-color: rgba(79, 193, 120, 0.3);
+  color: #9be3b4;
+}
+
+.draft-sync-offline {
+  background: rgba(255, 128, 96, 0.1);
+  border-color: rgba(255, 128, 96, 0.32);
+  color: #ffad98;
+}
+
+@media (max-width: 700px) {
+  .draft-sync-badge {
+    justify-content: center;
+    width: 100%;
+  }
+}

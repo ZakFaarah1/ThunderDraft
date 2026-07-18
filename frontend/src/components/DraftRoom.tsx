@@ -4,14 +4,19 @@ import {
   isFantasyTeamRosterFull,
 } from "../utils/rosterLimits";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { fantasyTeams } from "../data/league";
-import { fetchDraftPlayers } from "../api/client";
+import {
+  fetchDraftPlayers,
+  fetchDraftState,
+  saveDraftState,
+} from "../api/client";
 import { mapApiDraftPlayers } from "../api/draftPlayers";
 
 import type {
   ApiDraftPlayerListResponse,
+  ApiDraftStatePayload,
 } from "../api/types";
 
 import type {
@@ -26,6 +31,11 @@ import {
   isDraftComplete,
   isDraftOrderLocked,
 } from "../utils/draft";
+
+import {
+  resolveInitialDraftState,
+  serializeDraftState,
+} from "../utils/draftPersistence";
 
 import {
   getRosterHealthReport,
@@ -46,6 +56,13 @@ interface RecordedDraftPick {
   player: Player;
 }
 
+
+type DraftSyncStatus =
+  | "loading"
+  | "saving"
+  | "saved"
+  | "offline";
+
 const draftOrderStorageKey =
   "thunderdraft-draft-order";
 
@@ -53,6 +70,28 @@ const draftPicksStorageKey =
   "thunderdraft-draft-picks-v2";
 
 const totalDraftRounds = 15;
+
+
+/**
+ * Describes the current browser and SQLite save state.
+ */
+function getDraftSyncLabel(
+  status: DraftSyncStatus,
+): string {
+  if (status === "loading") {
+    return "Loading saved draft…";
+  }
+
+  if (status === "saving") {
+    return "Saving draft…";
+  }
+
+  if (status === "offline") {
+    return "Browser backup active";
+  }
+
+  return "Saved to SQLite";
+}
 
 /*
  * Controls the display order for roster position counts.
@@ -232,10 +271,10 @@ function loadSavedDraftPicks(): RecordedDraftPick[] {
 function DraftRoom() {
   const [draftPicks, setDraftPicks] = useState<
     RecordedDraftPick[]
-  >(loadSavedDraftPicks);
+  >([]);
 
   const [draftOrder, setDraftOrder] =
-    useState<string[]>(loadSavedDraftOrder);
+    useState<string[]>([]);
 
   const [
     showDraftOrderSetup,
@@ -274,6 +313,39 @@ function DraftRoom() {
     draftPoolError,
     setDraftPoolError,
   ] = useState<string | null>(null);
+
+  const [
+    draftStateHydrated,
+    setDraftStateHydrated,
+  ] = useState(false);
+
+  const [
+    draftSyncStatus,
+    setDraftSyncStatus,
+  ] = useState<DraftSyncStatus>(
+    "loading",
+  );
+
+  const [
+    draftSyncUpdatedAt,
+    setDraftSyncUpdatedAt,
+  ] = useState<string | null>(null);
+
+  const [
+    draftSyncError,
+    setDraftSyncError,
+  ] = useState<string | null>(null);
+
+  const draftSaveQueueRef =
+    useRef<Promise<void>>(
+      Promise.resolve(),
+    );
+
+  const draftSaveRevisionRef =
+    useRef(0);
+
+  const lastPersistedDraftRef =
+    useRef<string | null>(null);
 
   /**
    * Loads and maps the real 2026 player pool.
@@ -334,14 +406,250 @@ function DraftRoom() {
   }, []);
 
   /*
-   * Saves draft selections whenever the recorded picks change.
+   * Loads SQLite first and uses browser storage only as
+   * a migration source or temporary offline fallback.
    */
   useEffect(() => {
+    const controller =
+      new AbortController();
+
+    /**
+     * Selects and loads the safest available draft snapshot.
+     */
+    async function hydrateDraftState() {
+      const localState: ApiDraftStatePayload = {
+        draftOrder:
+          loadSavedDraftOrder(),
+        picks:
+          loadSavedDraftPicks(),
+      };
+
+      try {
+        const serverState =
+          await fetchDraftState(
+            controller.signal,
+          );
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        const resolution =
+          resolveInitialDraftState(
+            serverState,
+            localState,
+          );
+
+        let updatedAt =
+          serverState.updatedAt;
+
+        if (
+          resolution.shouldMigrateLocal
+        ) {
+          setDraftSyncStatus(
+            "saving",
+          );
+
+          const savedState =
+            await saveDraftState(
+              resolution.state,
+              controller.signal,
+            );
+
+          if (
+            controller.signal.aborted
+          ) {
+            return;
+          }
+
+          updatedAt =
+            savedState.updatedAt;
+        }
+
+        setDraftOrder(
+          resolution.state.draftOrder,
+        );
+
+        setDraftPicks(
+          resolution.state.picks,
+        );
+
+        localStorage.setItem(
+          draftOrderStorageKey,
+          JSON.stringify(
+            resolution.state.draftOrder,
+          ),
+        );
+
+        localStorage.setItem(
+          draftPicksStorageKey,
+          JSON.stringify(
+            resolution.state.picks,
+          ),
+        );
+
+        lastPersistedDraftRef.current =
+          serializeDraftState(
+            resolution.state,
+          );
+
+        setDraftSyncUpdatedAt(
+          updatedAt,
+        );
+
+        setDraftSyncError(null);
+        setDraftSyncStatus("saved");
+      } catch (error) {
+        if (
+          error instanceof DOMException &&
+          error.name === "AbortError"
+        ) {
+          return;
+        }
+
+        setDraftOrder(
+          localState.draftOrder,
+        );
+
+        setDraftPicks(
+          localState.picks,
+        );
+
+        lastPersistedDraftRef.current =
+          null;
+
+        setDraftSyncError(
+          error instanceof Error
+            ? error.message
+            : "SQLite draft storage is unavailable.",
+        );
+
+        setDraftSyncStatus(
+          "offline",
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setDraftStateHydrated(true);
+        }
+      }
+    }
+
+    void hydrateDraftState();
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
+  /*
+   * Writes every state change to localStorage immediately,
+   * then sends complete snapshots to SQLite in order.
+   */
+  useEffect(() => {
+    if (!draftStateHydrated) {
+      return;
+    }
+
+    const snapshot: ApiDraftStatePayload = {
+      draftOrder,
+      picks: draftPicks,
+    };
+
+    localStorage.setItem(
+      draftOrderStorageKey,
+      JSON.stringify(draftOrder),
+    );
+
     localStorage.setItem(
       draftPicksStorageKey,
       JSON.stringify(draftPicks),
     );
-  }, [draftPicks]);
+
+    const serializedSnapshot =
+      serializeDraftState(snapshot);
+
+    if (
+      serializedSnapshot ===
+      lastPersistedDraftRef.current
+    ) {
+      return;
+    }
+
+    const saveRevision =
+      draftSaveRevisionRef.current + 1;
+
+    draftSaveRevisionRef.current =
+      saveRevision;
+
+    setDraftSyncStatus("saving");
+    setDraftSyncError(null);
+
+    const pendingSave =
+      draftSaveQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          try {
+            const savedState =
+              await saveDraftState(
+                snapshot,
+              );
+
+            lastPersistedDraftRef.current =
+              serializedSnapshot;
+
+            if (
+              saveRevision ===
+              draftSaveRevisionRef.current
+            ) {
+              setDraftSyncUpdatedAt(
+                savedState.updatedAt,
+              );
+
+              setDraftSyncStatus(
+                "saved",
+              );
+            }
+          } catch (error) {
+            if (
+              saveRevision ===
+              draftSaveRevisionRef.current
+            ) {
+              setDraftSyncError(
+                error instanceof Error
+                  ? error.message
+                  : "Draft could not be saved to SQLite.",
+              );
+
+              setDraftSyncStatus(
+                "offline",
+              );
+            }
+          }
+        });
+
+    draftSaveQueueRef.current =
+      pendingSave;
+  }, [
+    draftOrder,
+    draftPicks,
+    draftStateHydrated,
+  ]);
+
+  if (!draftStateHydrated) {
+    return (
+      <section className="draft-room">
+        <div className="draft-pool-status">
+          <strong>
+            Loading saved draft…
+          </strong>
+
+          <span>
+            Checking SQLite and your browser backup.
+          </span>
+        </div>
+      </section>
+    );
+  }
 
   const nextOverallPick =
     draftPicks.length + 1;
@@ -474,11 +782,6 @@ function DraftRoom() {
 
     setDraftOrder(teamIds);
 
-    localStorage.setItem(
-      draftOrderStorageKey,
-      JSON.stringify(teamIds),
-    );
-
     setShowDraftOrderSetup(false);
   }
 
@@ -556,9 +859,6 @@ function DraftRoom() {
     setShowDraftResults(false);
     setDraftPicks([]);
 
-    localStorage.removeItem(
-      draftPicksStorageKey,
-    );
   }
 
   return (
@@ -579,6 +879,21 @@ function DraftRoom() {
         </div>
 
         <div className="draft-room-actions">
+          <span
+            className={`draft-sync-badge draft-sync-${draftSyncStatus}`}
+            title={
+              draftSyncError ??
+              (draftSyncUpdatedAt
+                ? `Last server save: ${new Date(
+                    draftSyncUpdatedAt,
+                  ).toLocaleString()}`
+                : "SQLite draft storage is ready.")
+            }
+          >
+            {getDraftSyncLabel(
+              draftSyncStatus,
+            )}
+          </span>
           <button
             className="secondary-button compact-button"
             disabled={draftOrderIsLocked}
