@@ -1,4 +1,5 @@
 import type {
+  Player,
   Position,
   ProjectionConfidence,
 } from "../types";
@@ -182,4 +183,28 @@ export interface ApiDraftPlayerListResponse {
   stale: boolean;
 
   players: ApiDraftPlayer[];
+}
+
+export interface ApiDraftStatePick {
+  id: string;
+  overallPick: number;
+  fantasyTeamId: string;
+  player: Player;
+}
+
+
+export interface ApiDraftStatePayload {
+  draftOrder: string[];
+  picks: ApiDraftStatePick[];
+}
+
+
+export interface ApiDraftStateResponse
+  extends ApiDraftStatePayload {
+  updatedAt: string | null;
+}
+
+
+export interface ApiDraftStateDeleteResponse {
+  deleted: boolean;
 }

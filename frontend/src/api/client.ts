@@ -1,5 +1,8 @@
 import type {
   ApiDraftPlayerListResponse,
+  ApiDraftStateDeleteResponse,
+  ApiDraftStatePayload,
+  ApiDraftStateResponse,
   ApiPlayerHistoryResponse,
   ApiPlayerListResponse,
   ApiPlayerStatsListResponse,
@@ -33,15 +36,13 @@ async function getApiErrorMessage(
 /**
  * Sends a typed request to the ThunderDraft backend.
  */
-async function fetchJson<T>(
+async function requestJson<T>(
   path: string,
-  signal?: AbortSignal,
+  options: RequestInit = {},
 ): Promise<T> {
   const response = await fetch(
     `${apiBasePath}${path}`,
-    {
-      signal,
-    },
+    options,
   );
 
   if (!response.ok) {
@@ -51,6 +52,22 @@ async function fetchJson<T>(
   }
 
   return (await response.json()) as T;
+}
+
+
+/**
+ * Sends a typed GET request to the ThunderDraft backend.
+ */
+async function fetchJson<T>(
+  path: string,
+  signal?: AbortSignal,
+): Promise<T> {
+  return requestJson<T>(
+    path,
+    {
+      signal,
+    },
+  );
 }
 
 
@@ -113,5 +130,54 @@ export function fetchDraftPlayers(
   return fetchJson<ApiDraftPlayerListResponse>(
     "/draft/players",
     signal,
+  );
+}
+
+/**
+ * Loads the active draft snapshot from SQLite.
+ */
+export function fetchDraftState(
+  signal?: AbortSignal,
+): Promise<ApiDraftStateResponse> {
+  return fetchJson<ApiDraftStateResponse>(
+    "/draft/state",
+    signal,
+  );
+}
+
+
+/**
+ * Creates or replaces the active SQLite draft snapshot.
+ */
+export function saveDraftState(
+  state: ApiDraftStatePayload,
+  signal?: AbortSignal,
+): Promise<ApiDraftStateResponse> {
+  return requestJson<ApiDraftStateResponse>(
+    "/draft/state",
+    {
+      body: JSON.stringify(state),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "PUT",
+      signal,
+    },
+  );
+}
+
+
+/**
+ * Deletes the active SQLite draft snapshot.
+ */
+export function deleteDraftState(
+  signal?: AbortSignal,
+): Promise<ApiDraftStateDeleteResponse> {
+  return requestJson<ApiDraftStateDeleteResponse>(
+    "/draft/state",
+    {
+      method: "DELETE",
+      signal,
+    },
   );
 }
