@@ -3639,3 +3639,139 @@ button {
   cursor: not-allowed;
   opacity: 0.55;
 }
+
+/*
+ * Displays every completed roster in one scrollable popup.
+ */
+.draft-results-modal {
+  max-width: 1120px;
+}
+
+/* Groups the results title and completion summary. */
+.draft-results-header-copy {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.draft-results-header-copy h2,
+.draft-results-header-copy p {
+  margin: 0;
+}
+
+.draft-results-summary {
+  color: #c8c2a2;
+  font-size: 0.82rem;
+}
+
+/* Separates each fantasy team's completed draft. */
+.draft-results-content {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.draft-results-team {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 215, 48, 0.16);
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.user-draft-results-team {
+  border-color: rgba(255, 215, 48, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(255, 215, 48, 0.08);
+}
+
+/* Identifies each manager and draft position. */
+.draft-results-team-header {
+  align-items: center;
+  background: rgba(255, 215, 48, 0.055);
+  border-bottom: 1px solid rgba(255, 215, 48, 0.13);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.9rem 1rem;
+}
+
+.draft-results-team-header > span {
+  color: #c8c2a2;
+  font-size: 0.78rem;
+}
+
+.draft-results-team-identity {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.draft-results-team-identity > span {
+  font-size: 1.5rem;
+}
+
+.draft-results-team-identity div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.draft-results-team-identity small {
+  color: #a9a589;
+}
+
+/* Keeps all five result columns readable on smaller screens. */
+.draft-results-table-wrap {
+  overflow-x: auto;
+}
+
+.draft-results-table {
+  border-collapse: collapse;
+  min-width: 680px;
+  width: 100%;
+}
+
+.draft-results-table th,
+.draft-results-table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  padding: 0.7rem 1rem;
+  text-align: left;
+}
+
+.draft-results-table th {
+  color: #aaa58a;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.draft-results-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.draft-results-player-cell {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.draft-results-player-cell span {
+  color: #aaa58a;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 700px) {
+  .draft-results-modal {
+    max-height: 94vh;
+  }
+
+  .draft-results-modal .stats-modal-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .draft-results-modal .stats-modal-header > button {
+    width: 100%;
+  }
+
+  .draft-results-content {
+    padding: 0.75rem;
+  }
+}

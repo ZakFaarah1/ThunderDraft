@@ -9,6 +9,7 @@ import {
   getPickDetails,
   getPicksUntilNextTurn,
   getUserOverallPicks,
+  isDraftComplete,
 } from "./draft";
 
 /**
@@ -292,5 +293,41 @@ describe("getPicksUntilNextTurn", () => {
         ],
       ),
     ).toBe(16);
+  });
+});
+
+/**
+ * Verifies that draft results are available only after
+ * every scheduled selection has been recorded.
+ */
+describe("isDraftComplete", () => {
+  it("recognizes exactly 180 picks in a 12-team draft", () => {
+    expect(
+      isDraftComplete(
+        180,
+        12,
+        15,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not complete the draft before the final pick", () => {
+    expect(
+      isDraftComplete(
+        179,
+        12,
+        15,
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects a pick count beyond the scheduled draft", () => {
+    expect(
+      isDraftComplete(
+        181,
+        12,
+        15,
+      ),
+    ).toBe(false);
   });
 });

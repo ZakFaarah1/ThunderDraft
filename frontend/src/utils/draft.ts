@@ -130,3 +130,17 @@ export function getPicksUntilNextTurn(
     nextUserPick - currentOverallPick - 1,
   );
 }
+
+/**
+ * Reports whether every scheduled draft selection is recorded.
+ */
+export function isDraftComplete(
+  recordedPickCount: number,
+  teamCount: number,
+  totalRounds: number,
+): boolean {
+  return (
+    recordedPickCount ===
+    teamCount * totalRounds
+  );
+}

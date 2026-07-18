@@ -23,6 +23,7 @@ import {
   getFantasyTeamForPick,
   getPicksUntilNextTurn,
   getUserOverallPicks,
+  isDraftComplete,
 } from "../utils/draft";
 
 import {
@@ -32,6 +33,7 @@ import {
 } from "../utils/rosterHealth";
 
 import DraftOrderSetup from "./DraftOrderSetup";
+import DraftResultsModal from "./DraftResultsModal";
 import MyRoster from "./MyRoster";
 import PlayerBoard from "./PlayerBoard";
 import RecommendationsPanel from "./RecommendationsPanel";
@@ -240,6 +242,11 @@ function DraftRoom() {
   ] = useState(false);
 
   const [
+    showDraftResults,
+    setShowDraftResults,
+  ] = useState(false);
+
+  const [
     manualFantasyTeamId,
     setManualFantasyTeamId,
   ] = useState(fantasyTeams[0].id);
@@ -337,6 +344,13 @@ function DraftRoom() {
 
   const nextOverallPick =
     draftPicks.length + 1;
+
+  const draftIsComplete =
+    isDraftComplete(
+      draftPicks.length,
+      fantasyTeams.length,
+      totalDraftRounds,
+    );
 
   const hasDraftOrder =
     draftOrder.length === fantasyTeams.length &&
@@ -462,6 +476,10 @@ function DraftRoom() {
    * Records a player for the team currently on the clock.
    */
   function draftPlayer(player: Player) {
+    if (draftIsComplete) {
+      return;
+    }
+
     if (!activeFantasyTeamId) {
       window.alert(
         "Select a fantasy team before drafting a player.",
@@ -504,6 +522,8 @@ function DraftRoom() {
    * Removes the most recent draft pick.
    */
   function undoLastPick() {
+    setShowDraftResults(false);
+
     setDraftPicks((currentPicks) =>
       currentPicks.slice(0, -1),
     );
@@ -521,6 +541,7 @@ function DraftRoom() {
       return;
     }
 
+    setShowDraftResults(false);
     setDraftPicks([]);
 
     localStorage.removeItem(
@@ -563,8 +584,22 @@ function DraftRoom() {
                 : "Set Draft Order"}
           </button>
 
+          {draftIsComplete && (
+            <button
+              className="secondary-button compact-button"
+              onClick={() =>
+                setShowDraftResults(true)
+              }
+              type="button"
+            >
+              View Draft Results
+            </button>
+          )}
+
           <span className="current-pick-badge">
-            Pick {nextOverallPick}
+            {draftIsComplete
+              ? "Draft complete"
+              : `Pick ${nextOverallPick}`}
           </span>
 
           <button
@@ -1022,6 +1057,19 @@ function DraftRoom() {
           </aside>
         </div>
       </div>
+      {showDraftResults &&
+        draftIsComplete && (
+          <DraftResultsModal
+            draftOrder={draftOrder}
+            onClose={() =>
+              setShowDraftResults(false)
+            }
+            picks={draftPicks}
+            teams={fantasyTeams}
+            totalRounds={totalDraftRounds}
+          />
+        )}
+
     </section>
   );
 }
