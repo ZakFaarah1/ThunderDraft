@@ -1,9 +1,20 @@
 from app.services.draft_players import get_draft_players
+from app.services.draft_state import (
+    delete_draft_state,
+    get_draft_state,
+    initialize_draft_state_database,
+    save_draft_state,
+)
 from app.models.draft import DraftPlayerListResponse
+from app.models.draft_state import (
+    DraftStateDeleteResponse,
+    DraftStateResponse,
+    DraftStateUpsert,
+)
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.logging_config import configure_application_logging
@@ -30,6 +41,12 @@ async def lifespan(
     app: FastAPI,
 ) -> AsyncIterator[None]:
     """Logs application startup and shutdown events."""
+
+    initialize_draft_state_database()
+
+    logger.info(
+        "draft_state_database_ready",
+    )
 
     logger.info(
         "application_started version=0.5.0",
@@ -137,6 +154,49 @@ async def list_draft_players(
     return await get_draft_players(
         force_refresh=refresh,
     )
+
+
+# Returns the active persisted fantasy draft.
+@app.get(
+    "/api/draft/state",
+    response_model=DraftStateResponse,
+)
+def read_draft_state() -> DraftStateResponse:
+    """Returns the active saved draft snapshot."""
+
+    return get_draft_state()
+
+
+# Creates or replaces the active persisted fantasy draft.
+@app.put(
+    "/api/draft/state",
+    response_model=DraftStateResponse,
+)
+def write_draft_state(
+    state: DraftStateUpsert,
+) -> DraftStateResponse:
+    """Saves the active draft snapshot."""
+
+    try:
+        return save_draft_state(
+            state,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=422,
+            detail=str(error),
+        ) from error
+
+
+# Deletes the active persisted fantasy draft.
+@app.delete(
+    "/api/draft/state",
+    response_model=DraftStateDeleteResponse,
+)
+def clear_draft_state() -> DraftStateDeleteResponse:
+    """Deletes the active saved draft snapshot."""
+
+    return delete_draft_state()
 
 
 # Returns ranked half-PPR statistics for one selected season.
