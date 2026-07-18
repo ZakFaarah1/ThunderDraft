@@ -14,9 +14,12 @@ import type { Player } from "../types";
 
 interface DraftPlayerDetailsModalProps {
   player: Player;
+  isRosterFull: boolean;
   isUserOnClock: boolean;
   onClose: () => void;
   onDraftPlayer: (player: Player) => void;
+  rosterCount: number;
+  rosterLimit: number;
 }
 
 
@@ -180,9 +183,12 @@ function ModalPlayerHeadshot({
  */
 function DraftPlayerDetailsModal({
   player,
+  isRosterFull,
   isUserOnClock,
   onClose,
   onDraftPlayer,
+  rosterCount,
+  rosterLimit,
 }: DraftPlayerDetailsModalProps) {
   const [
     history,
@@ -315,6 +321,10 @@ function DraftPlayerDetailsModal({
    * Records the selected player and closes the popup.
    */
   function handleDraftPlayer() {
+    if (isRosterFull) {
+      return;
+    }
+
     onDraftPlayer(player);
     onClose();
   }
@@ -625,12 +635,15 @@ function DraftPlayerDetailsModal({
 
           <button
             className="draft-player-button"
+            disabled={isRosterFull}
             onClick={handleDraftPlayer}
             type="button"
           >
-            {isUserOnClock
-              ? "Select Pick"
-              : "Record Drafted"}
+            {isRosterFull
+              ? `Roster full · ${rosterCount}/${rosterLimit}`
+              : isUserOnClock
+                ? "Select Pick"
+                : "Record Drafted"}
           </button>
         </div>
       </section>

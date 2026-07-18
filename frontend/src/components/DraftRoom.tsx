@@ -1,5 +1,6 @@
 import {
   FANTASY_ROSTER_LIMIT,
+  getFantasyTeamRosterCount,
   isFantasyTeamRosterFull,
 } from "../utils/rosterLimits";
 
@@ -359,6 +360,16 @@ function DraftRoom() {
     (team) =>
       team.id === activeFantasyTeamId,
   );
+
+  const activeTeamRosterCount =
+    getFantasyTeamRosterCount(
+      draftPicks,
+      activeFantasyTeamId,
+    );
+
+  const isActiveTeamRosterFull =
+    activeTeamRosterCount >=
+    FANTASY_ROSTER_LIMIT;
 
   const isUserOnClock =
     activeFantasyTeam?.isUser === true;
@@ -760,8 +771,17 @@ function DraftRoom() {
             draftedPlayerIds={
               draftedPlayerIds
             }
+            isRosterFull={
+              isActiveTeamRosterFull
+            }
             isUserOnClock={isUserOnClock}
             onDraftPlayer={draftPlayer}
+            rosterCount={
+              activeTeamRosterCount
+            }
+            rosterLimit={
+              FANTASY_ROSTER_LIMIT
+            }
           />
 
           <MyRoster

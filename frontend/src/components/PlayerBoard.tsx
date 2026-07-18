@@ -16,8 +16,11 @@ type PlayerFilter =
 interface PlayerBoardProps {
   players: Player[];
   draftedPlayerIds: string[];
+  isRosterFull: boolean;
   isUserOnClock: boolean;
   onDraftPlayer: (player: Player) => void;
+  rosterCount: number;
+  rosterLimit: number;
 }
 
 const playerFilters: PlayerFilter[] = [
@@ -38,8 +41,11 @@ const playerFilters: PlayerFilter[] = [
 function PlayerBoard({
   players,
   draftedPlayerIds,
+  isRosterFull,
   isUserOnClock,
   onDraftPlayer,
+  rosterCount,
+  rosterLimit,
 }: PlayerBoardProps) {
   const [searchTerm, setSearchTerm] =
     useState("");
@@ -295,14 +301,17 @@ function PlayerBoard({
 
               <button
                 className="draft-player-button"
+                disabled={isRosterFull}
                 onClick={() =>
                   onDraftPlayer(player)
                 }
                 type="button"
               >
-                {isUserOnClock
-                  ? "Select Pick"
-                  : "Drafted"}
+                {isRosterFull
+                  ? `Roster full · ${rosterCount}/${rosterLimit}`
+                  : isUserOnClock
+                    ? "Select Pick"
+                    : "Drafted"}
               </button>
             </article>
           ))}
@@ -312,10 +321,13 @@ function PlayerBoard({
 
       {selectedPlayer && (
         <DraftPlayerDetailsModal
+          isRosterFull={isRosterFull}
           isUserOnClock={isUserOnClock}
           onClose={closePlayerDetails}
           onDraftPlayer={onDraftPlayer}
           player={selectedPlayer}
+          rosterCount={rosterCount}
+          rosterLimit={rosterLimit}
         />
       )}
     </>
