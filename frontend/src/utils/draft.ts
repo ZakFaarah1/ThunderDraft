@@ -144,3 +144,12 @@ export function isDraftComplete(
     teamCount * totalRounds
   );
 }
+
+/**
+ * Locks the draft order after the first pick is recorded.
+ */
+export function isDraftOrderLocked(
+  recordedPickCount: number,
+): boolean {
+  return recordedPickCount > 0;
+}

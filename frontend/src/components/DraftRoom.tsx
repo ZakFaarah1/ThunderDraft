@@ -24,6 +24,7 @@ import {
   getPicksUntilNextTurn,
   getUserOverallPicks,
   isDraftComplete,
+  isDraftOrderLocked,
 } from "../utils/draft";
 
 import {
@@ -352,6 +353,11 @@ function DraftRoom() {
       totalDraftRounds,
     );
 
+  const draftOrderIsLocked =
+    isDraftOrderLocked(
+      draftPicks.length,
+    );
+
   const hasDraftOrder =
     draftOrder.length === fantasyTeams.length &&
     new Set(draftOrder).size ===
@@ -462,6 +468,10 @@ function DraftRoom() {
   function saveDraftOrder(
     teamIds: string[],
   ) {
+    if (draftOrderIsLocked) {
+      return;
+    }
+
     setDraftOrder(teamIds);
 
     localStorage.setItem(
@@ -504,6 +514,8 @@ function DraftRoom() {
     if (draftedPlayerIds.includes(player.id)) {
       return;
     }
+
+    setShowDraftOrderSetup(false);
 
     const newPick: RecordedDraftPick = {
       id: `${Date.now()}-${player.id}`,
@@ -569,6 +581,7 @@ function DraftRoom() {
         <div className="draft-room-actions">
           <button
             className="secondary-button compact-button"
+            disabled={draftOrderIsLocked}
             onClick={() =>
               setShowDraftOrderSetup(
                 (currentValue) =>
@@ -577,11 +590,13 @@ function DraftRoom() {
             }
             type="button"
           >
-            {showDraftOrderSetup
-              ? "Close Order Setup"
-              : hasDraftOrder
-                ? "Edit Draft Order"
-                : "Set Draft Order"}
+            {draftOrderIsLocked
+              ? "Draft Order Locked"
+              : showDraftOrderSetup
+                ? "Close Order Setup"
+                : hasDraftOrder
+                  ? "Edit Draft Order"
+                  : "Set Draft Order"}
           </button>
 
           {draftIsComplete && (
@@ -626,7 +641,8 @@ function DraftRoom() {
         </div>
       </div>
 
-      {showDraftOrderSetup && (
+      {showDraftOrderSetup &&
+        !draftOrderIsLocked && (
         <DraftOrderSetup
           initialOrder={draftOrder}
           onSave={saveDraftOrder}

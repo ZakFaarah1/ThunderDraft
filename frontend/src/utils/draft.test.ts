@@ -10,6 +10,7 @@ import {
   getPicksUntilNextTurn,
   getUserOverallPicks,
   isDraftComplete,
+  isDraftOrderLocked,
 } from "./draft";
 
 /**
@@ -329,5 +330,28 @@ describe("isDraftComplete", () => {
         15,
       ),
     ).toBe(false);
+  });
+});
+
+/**
+ * Verifies that draft order changes stop after drafting begins.
+ */
+describe("isDraftOrderLocked", () => {
+  it("allows draft-order changes before the first pick", () => {
+    expect(
+      isDraftOrderLocked(0),
+    ).toBe(false);
+  });
+
+  it("locks the order after the first pick", () => {
+    expect(
+      isDraftOrderLocked(1),
+    ).toBe(true);
+  });
+
+  it("keeps the order locked throughout the draft", () => {
+    expect(
+      isDraftOrderLocked(180),
+    ).toBe(true);
   });
 });
