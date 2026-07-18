@@ -633,7 +633,8 @@ function DraftRoom() {
         />
       )}
 
-      <div className="on-clock-card">
+      {!draftIsComplete ? (
+        <div className="on-clock-card">
         <div className="on-clock-manager">
           <span className="on-clock-emoji">
             {activeFantasyTeam?.emoji ??
@@ -694,9 +695,41 @@ function DraftRoom() {
             </select>
           </label>
         )}
-      </div>
+        </div>
+      ) : (
+        <div className="draft-complete-card">
+          <div className="draft-complete-icon">
+            🏆
+          </div>
 
-      {isUserOnClock && (
+          <div>
+            <p className="eyebrow">
+              All selections recorded
+            </p>
+
+            <h3>Draft Complete</h3>
+
+            <span>
+              All {draftPicks.length} picks across{" "}
+              {totalDraftRounds} rounds are complete.
+              Open Draft Results to review every roster.
+            </span>
+          </div>
+
+          <button
+            className="draft-player-button"
+            onClick={() =>
+              setShowDraftResults(true)
+            }
+            type="button"
+          >
+            View Draft Results
+          </button>
+        </div>
+      )}
+
+      {!draftIsComplete &&
+        isUserOnClock && (
         <div className="your-turn-banner">
           <div className="your-turn-message">
             <span className="your-turn-pulse" />
@@ -720,7 +753,8 @@ function DraftRoom() {
         </div>
       )}
 
-      {isUserOnClock && (
+      {!draftIsComplete &&
+        isUserOnClock && (
         <RecommendationsPanel
           availablePlayers={
             availablePlayers

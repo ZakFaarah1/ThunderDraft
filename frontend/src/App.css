@@ -3775,3 +3775,52 @@ button {
     padding: 0.75rem;
   }
 }
+
+/*
+ * Replaces the on-clock display after all scheduled picks.
+ */
+.draft-complete-card {
+  align-items: center;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 215, 48, 0.16),
+      rgba(24, 21, 4, 0.96)
+    );
+  border: 1px solid rgba(255, 215, 48, 0.48);
+  border-radius: 1rem;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin-bottom: 1rem;
+  padding: 1.25rem;
+}
+
+.draft-complete-card h3,
+.draft-complete-card p {
+  margin: 0;
+}
+
+.draft-complete-card div:nth-child(2) {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.draft-complete-card div:nth-child(2) > span {
+  color: #c8c2a2;
+  line-height: 1.5;
+}
+
+.draft-complete-icon {
+  font-size: 2.2rem;
+}
+
+@media (max-width: 700px) {
+  .draft-complete-card {
+    grid-template-columns: 1fr;
+  }
+
+  .draft-complete-card .draft-player-button {
+    width: 100%;
+  }
+}
