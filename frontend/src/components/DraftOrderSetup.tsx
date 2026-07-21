@@ -4,11 +4,13 @@ import { fantasyTeams } from "../data/league";
 interface DraftOrderSetupProps {
   initialOrder?: string[];
   onSave: (teamIds: string[]) => void;
+  onClear: () => void;
 }
 
 function DraftOrderSetup({
   initialOrder = [],
   onSave,
+  onClear,
 }: DraftOrderSetupProps) {
   const [draftOrder, setDraftOrder] = useState<string[]>(
     initialOrder.length === fantasyTeams.length
@@ -20,6 +22,12 @@ function DraftOrderSetup({
     () => new Set(draftOrder.filter(Boolean)),
     [draftOrder],
   );
+
+  const assignedCount =
+    draftOrder.filter(Boolean).length;
+
+  const hasAnyAssignments =
+    assignedCount > 0;
 
   const isComplete =
     draftOrder.every(Boolean) &&
@@ -36,6 +44,37 @@ function DraftOrderSetup({
     });
   }
 
+  /**
+   * Randomly assigns every team to one unique draft slot.
+   */
+  function autoSetDraftOrder() {
+    const shuffledTeamIds =
+      fantasyTeams.map(
+        (team) => team.id,
+      );
+
+    for (
+      let index =
+        shuffledTeamIds.length - 1;
+      index > 0;
+      index -= 1
+    ) {
+      const randomIndex = Math.floor(
+        Math.random() * (index + 1),
+      );
+
+      [
+        shuffledTeamIds[index],
+        shuffledTeamIds[randomIndex],
+      ] = [
+        shuffledTeamIds[randomIndex],
+        shuffledTeamIds[index],
+      ];
+    }
+
+    setDraftOrder(shuffledTeamIds);
+  }
+
   function saveDraftOrder() {
     if (!isComplete) {
       return;
@@ -44,103 +83,153 @@ function DraftOrderSetup({
     onSave(draftOrder);
   }
 
+  function clearDraftOrder() {
+    const confirmed = window.confirm(
+      "Clear the current draft order?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDraftOrder(
+      Array(fantasyTeams.length).fill(""),
+    );
+
+    onClear();
+  }
+
   return (
     <section className="draft-order-setup">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">League configuration</p>
+          <p className="eyebrow">
+            League configuration
+          </p>
           <h2>Set Draft Order</h2>
         </div>
 
         <span className="order-pending">
-          {isComplete ? "Order complete" : "Order pending"}
+          {isComplete
+            ? "Order complete"
+            : "Order pending"}
         </span>
       </div>
 
       <p className="draft-order-description">
-        Assign each league member to their official draft
-        position. ThunderDraft will use this order to manage
-        every round of the snake draft automatically.
+        Assign each league member to their official
+        draft position. ThunderDraft will use this
+        order to manage every round of the snake
+        draft automatically.
       </p>
 
       <div className="draft-order-grid">
-        {draftOrder.map((fantasyTeamId, slotIndex) => {
-          const selectedTeam = fantasyTeams.find(
-            (team) => team.id === fantasyTeamId,
-          );
+        {draftOrder.map(
+          (fantasyTeamId, slotIndex) => {
+            const selectedTeam =
+              fantasyTeams.find(
+                (team) =>
+                  team.id === fantasyTeamId,
+              );
 
-          return (
-            <label
-              className={`draft-slot-card ${
-                selectedTeam?.isUser
-                  ? "user-draft-slot"
-                  : ""
-              }`}
-              key={slotIndex}
-            >
-              <span className="draft-slot-number">
-                {slotIndex + 1}
-              </span>
-
-              <div className="draft-slot-control">
-                <span>
-                  Pick {slotIndex + 1}
-                  {selectedTeam?.isUser
-                    ? " · Your position"
-                    : ""}
+            return (
+              <label
+                className={`draft-slot-card ${
+                  selectedTeam?.isUser
+                    ? "user-draft-slot"
+                    : ""
+                }`}
+                key={slotIndex}
+              >
+                <span className="draft-slot-number">
+                  {slotIndex + 1}
                 </span>
 
-                <select
-                  onChange={(event) =>
-                    updateDraftSlot(
-                      slotIndex,
-                      event.target.value,
-                    )
-                  }
-                  value={fantasyTeamId}
-                >
-                  <option value="">
-                    Select league member
-                  </option>
+                <div className="draft-slot-control">
+                  <span>
+                    Pick {slotIndex + 1}
+                    {selectedTeam?.isUser
+                      ? " · Your position"
+                      : ""}
+                  </span>
 
-                  {fantasyTeams.map((team) => {
-                    const selectedInAnotherSlot =
-                      selectedTeamIds.has(team.id) &&
-                      team.id !== fantasyTeamId;
+                  <select
+                    onChange={(event) =>
+                      updateDraftSlot(
+                        slotIndex,
+                        event.target.value,
+                      )
+                    }
+                    value={fantasyTeamId}
+                  >
+                    <option value="">
+                      Select league member
+                    </option>
 
-                    return (
-                      <option
-                        disabled={selectedInAnotherSlot}
-                        key={team.id}
-                        value={team.id}
-                      >
-                        {team.emoji} {team.name}
-                        {team.isUser ? " — You" : ""}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            </label>
-          );
-        })}
+                    {fantasyTeams.map((team) => {
+                      const selectedInAnotherSlot =
+                        selectedTeamIds.has(
+                          team.id,
+                        ) &&
+                        team.id !== fantasyTeamId;
+
+                      return (
+                        <option
+                          disabled={
+                            selectedInAnotherSlot
+                          }
+                          key={team.id}
+                          value={team.id}
+                        >
+                          {team.emoji} {team.name}
+                          {team.isUser
+                            ? " — You"
+                            : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              </label>
+            );
+          },
+        )}
       </div>
 
       <div className="draft-order-footer">
         <span>
-          {
-            draftOrder.filter(Boolean).length
-          } of {fantasyTeams.length} positions assigned
+          {assignedCount} of{" "}
+          {fantasyTeams.length} positions
+          assigned
         </span>
 
-        <button
-          className="primary-button"
-          disabled={!isComplete}
-          onClick={saveDraftOrder}
-          type="button"
-        >
-          Save Draft Order
-        </button>
+        <div className="draft-order-footer-actions">
+          <button
+            className="secondary-button"
+            disabled={!hasAnyAssignments}
+            onClick={clearDraftOrder}
+            type="button"
+          >
+            Clear Draft Order
+          </button>
+
+          <button
+            className="secondary-button"
+            onClick={autoSetDraftOrder}
+            type="button"
+          >
+            Auto Set Order
+          </button>
+
+          <button
+            className="primary-button"
+            disabled={!isComplete}
+            onClick={saveDraftOrder}
+            type="button"
+          >
+            Save Draft Order
+          </button>
+        </div>
       </div>
     </section>
   );

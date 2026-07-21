@@ -126,17 +126,17 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(380px, 0.9fr);
   align-items: center;
-  gap: 70px;
-  min-height: 620px;
-  padding: 72px 0;
+  gap: 64px;
+  min-height: 560px;
+  padding: 52px 0 60px;
 }
 
 .hero h2 {
-  max-width: 780px;
-  margin: 16px 0 24px;
-  font-size: clamp(52px, 7vw, 92px);
-  line-height: 0.95;
-  letter-spacing: -0.06em;
+  max-width: 740px;
+  margin: 14px 0 22px;
+  font-size: clamp(50px, 6.4vw, 82px);
+  line-height: 0.96;
+  letter-spacing: -0.055em;
 }
 
 .hero-description {
@@ -3864,3 +3864,74 @@ button {
     width: 100%;
   }
 }
+
+/*
+ * Turns the draft-position status into a clear navigation action.
+ */
+.draft-position-action {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.draft-position-action:hover {
+  border-color: rgba(250, 204, 21, 0.46);
+  background: rgba(250, 204, 21, 0.07);
+}
+
+.draft-position-action:focus-visible {
+  outline: 2px solid #facc15;
+  outline-offset: 3px;
+}
+
+.draft-order-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 680px) {
+  .draft-order-footer-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .draft-order-footer-actions .primary-button,
+  .draft-order-footer-actions .secondary-button {
+    width: 100%;
+  }
+}
+
+.draft-order-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 680px) {
+  .draft-order-footer-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .draft-order-footer-actions .primary-button,
+  .draft-order-footer-actions .secondary-button {
+    width: 100%;
+  }
+}
+
+/*
+ * Highlights a fully saved homepage draft order.
+ */
+.order-pending.order-complete {
+  border-color: rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.1);
+  color: #86efac;
+}
+

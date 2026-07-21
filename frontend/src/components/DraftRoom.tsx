@@ -265,10 +265,19 @@ function loadSavedDraftPicks(): RecordedDraftPick[] {
   }
 }
 
+interface DraftRoomProps {
+  onDraftOrderEntryHandled?: () => void;
+  openDraftOrderOnEntry?: boolean;
+}
+
+
 /**
  * Displays and controls the live fantasy draft.
  */
-function DraftRoom() {
+function DraftRoom({
+  onDraftOrderEntryHandled,
+  openDraftOrderOnEntry = false,
+}: DraftRoomProps) {
   const [draftPicks, setDraftPicks] = useState<
     RecordedDraftPick[]
   >([]);
@@ -279,7 +288,20 @@ function DraftRoom() {
   const [
     showDraftOrderSetup,
     setShowDraftOrderSetup,
-  ] = useState(false);
+  ] = useState(
+    openDraftOrderOnEntry,
+  );
+
+  useEffect(() => {
+    if (!openDraftOrderOnEntry) {
+      return;
+    }
+
+    onDraftOrderEntryHandled?.();
+  }, [
+    onDraftOrderEntryHandled,
+    openDraftOrderOnEntry,
+  ]);
 
   const [
     showDraftResults,
@@ -786,6 +808,17 @@ function DraftRoom() {
   }
 
   /**
+   * Clears the saved draft order before the draft begins.
+   */
+  function clearDraftOrder() {
+    if (draftOrderIsLocked) {
+      return;
+    }
+
+    setDraftOrder([]);
+  }
+
+  /**
    * Records a player for the team currently on the clock.
    */
   function draftPlayer(player: Player) {
@@ -960,6 +993,7 @@ function DraftRoom() {
         !draftOrderIsLocked && (
         <DraftOrderSetup
           initialOrder={draftOrder}
+          onClear={clearDraftOrder}
           onSave={saveDraftOrder}
         />
       )}

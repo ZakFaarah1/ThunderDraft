@@ -28,6 +28,11 @@ function App() {
   const [currentPage, setCurrentPage] =
     useState<AppPage>("home");
 
+  const [
+    openDraftOrderOnEntry,
+    setOpenDraftOrderOnEntry,
+  ] = useState(false);
+
   /*
    * Checks whether the ThunderDraft backend is available.
    */
@@ -206,7 +211,17 @@ function App() {
                 </span>
               </div>
 
-              <div className="player-row">
+              <button
+                className="player-row draft-position-action"
+                onClick={() => {
+                  setOpenDraftOrderOnEntry(
+                    true,
+                  );
+
+                  setCurrentPage("draft");
+                }}
+                type="button"
+              >
                 <span className="rank">
                   03
                 </span>
@@ -216,9 +231,9 @@ function App() {
                 </strong>
 
                 <span className="position">
-                  TBD
+                  Set order
                 </span>
-              </div>
+              </button>
             </div>
           </section>
 
@@ -228,7 +243,14 @@ function App() {
 
       {currentPage === "draft" && (
         <div className="draft-page">
-          <DraftRoom />
+          <DraftRoom
+            onDraftOrderEntryHandled={() =>
+              setOpenDraftOrderOnEntry(false)
+            }
+            openDraftOrderOnEntry={
+              openDraftOrderOnEntry
+            }
+          />
         </div>
       )}
 
