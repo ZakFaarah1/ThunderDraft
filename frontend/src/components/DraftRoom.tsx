@@ -7,6 +7,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { fantasyTeams } from "../data/league";
+import { getNflTeamBrand } from "../data/nflTeams";
 import {
   fetchDraftPlayers,
   fetchDraftState,
@@ -307,6 +308,18 @@ function DraftRoom({
     showDraftResults,
     setShowDraftResults,
   ] = useState(false);
+
+  /*
+   * Null means the tracker follows the live round.
+   * A number means the user is browsing that round.
+   */
+  const [
+    viewedDraftRound,
+    setViewedDraftRound,
+  ] = useState<number | null>(null);
+
+  const draftRoundRailRef =
+    useRef<HTMLDivElement | null>(null);
 
   const [
     manualFantasyTeamId,
@@ -683,6 +696,20 @@ function DraftRoom({
       totalDraftRounds,
     );
 
+  const liveDraftRound =
+    draftIsComplete
+      ? totalDraftRounds
+      : Math.min(
+          totalDraftRounds,
+          Math.floor(
+            (nextOverallPick - 1) /
+              fantasyTeams.length,
+          ) + 1,
+        );
+
+  const displayedDraftRound =
+    viewedDraftRound ?? liveDraftRound;
+
   const draftOrderIsLocked =
     isDraftOrderLocked(
       draftPicks.length,
@@ -727,6 +754,26 @@ function DraftRoom({
   const draftedPlayerIds = draftPicks.map(
     (pick) => pick.player.id,
   );
+
+  const lastRecordedPick =
+    draftPicks[draftPicks.length - 1] ??
+    null;
+
+  const lastPickFantasyTeam =
+    lastRecordedPick
+      ? fantasyTeams.find(
+          (team) =>
+            team.id ===
+            lastRecordedPick.fantasyTeamId,
+        ) ?? null
+      : null;
+
+  const lastPickNflTeamBrand =
+    lastRecordedPick
+      ? getNflTeamBrand(
+          lastRecordedPick.player.nflTeam,
+        )
+      : null;
 
   const availablePlayers = draftPlayers.filter(
     (player) =>
@@ -902,6 +949,83 @@ function DraftRoom({
           : ""
       }`}
     >
+      {lastRecordedPick && (
+        <aside
+          className="floating-last-pick-card"
+          style={{
+            borderColor: `${
+              lastPickNflTeamBrand?.secondaryColor ??
+              "#4ade80"
+            }88`,
+            background: `linear-gradient(
+              145deg,
+              ${
+                lastPickNflTeamBrand?.primaryColor ??
+                "#0f2a1a"
+              }E6,
+              rgba(7, 7, 7, 0.98)
+            )`,
+            boxShadow: `0 20px 45px rgba(0, 0, 0, 0.34),
+              0 0 28px ${
+                lastPickNflTeamBrand?.secondaryColor ??
+                "#22c55e"
+              }22`,
+          }}
+        >
+          <p className="eyebrow">
+            Last Pick
+          </p>
+
+          <div className="floating-last-pick-player">
+            <div className="floating-last-pick-headshot">
+              {lastRecordedPick.player.imageUrl ? (
+                <img
+                  alt={`${lastRecordedPick.player.name} headshot`}
+                  src={
+                    lastRecordedPick.player.imageUrl
+                  }
+                />
+              ) : (
+                <span aria-hidden="true">
+                  {lastRecordedPick.player.name
+                    .split(" ")
+                    .map(
+                      (namePart) =>
+                        namePart[0],
+                    )
+                    .join("")
+                    .slice(0, 2)}
+                </span>
+              )}
+            </div>
+
+            <div className="floating-last-pick-details">
+              <strong>
+                {lastRecordedPick.player.name}
+              </strong>
+
+              <span>
+                {lastRecordedPick.player.position} ·{" "}
+                {lastRecordedPick.player.nflTeam}
+              </span>
+            </div>
+          </div>
+
+          <div className="floating-last-pick-footer">
+            <span>
+              {lastPickFantasyTeam?.emoji ??
+                "🏈"}{" "}
+              {lastPickFantasyTeam?.name ??
+                "Unknown"}
+            </span>
+
+            <strong>
+              Pick #{lastRecordedPick.overallPick}
+            </strong>
+          </div>
+        </aside>
+      )}
+
       <div className="section-heading">
         <div>
           <p className="eyebrow">
@@ -998,6 +1122,125 @@ function DraftRoom({
         />
       )}
 
+
+
+      {!draftIsComplete &&
+        isUserOnClock && (
+        <div className="your-turn-banner">
+          <div className="your-turn-message">
+            <span className="your-turn-pulse" />
+
+            <div>
+              <p className="eyebrow">
+                You are on the clock
+              </p>
+
+              <strong>
+                Thunder ⚡ — build your team
+              </strong>
+            </div>
+          </div>
+
+          <span>
+            {picksUntilNextTurn === null
+              ? "Recommendations are ready"
+              : `${picksUntilNextTurn} picks until your next turn`}
+          </span>
+        </div>
+      )}
+
+      {!draftIsComplete &&
+        isUserOnClock && (
+        <RecommendationsPanel
+          availablePlayers={
+            availablePlayers
+          }
+          currentOverallPick={
+            nextOverallPick
+          }
+          picksUntilNextTurn={
+            picksUntilNextTurn
+          }
+          recentDraftedPlayers={
+            recentDraftedPlayers
+          }
+          userDraftedPlayers={
+            userDraftedPlayers
+          }
+          isRosterFull={
+            isActiveTeamRosterFull
+          }
+          isUserOnClock={
+            isUserOnClock
+          }
+          rosterCount={
+            activeTeamRosterCount
+          }
+          rosterLimit={
+            FANTASY_ROSTER_LIMIT
+          }
+          onDraftPlayer={draftPlayer}
+        />
+      )}
+
+      {draftPoolLoading && (
+        <div className="draft-pool-status">
+          <strong>
+            Loading 2026 draft pool…
+          </strong>
+
+          <span>
+            Retrieving players, rookies, and ADP.
+          </span>
+        </div>
+      )}
+
+      {draftPoolError && (
+        <div className="draft-pool-status draft-pool-error">
+          <strong>
+            Draft pool unavailable
+          </strong>
+
+          <span>{draftPoolError}</span>
+        </div>
+      )}
+
+      {!draftPoolLoading &&
+        !draftPoolError &&
+        draftPoolResponse && (
+          <div className="draft-pool-status">
+            <strong>
+              {draftPoolResponse.draftSeason} half-PPR pool
+            </strong>
+
+            <span>
+              {draftPoolResponse.playerCount} players ·{" "}
+              {draftPoolResponse.rookieCount} rookies ·{" "}
+              {draftPoolResponse.matchedAdpPlayerCount} ADP matches
+              {draftPoolResponse.stale
+                ? " · cached fallback"
+                : ""}
+            </span>
+            <span className="draft-data-updated">
+              Player data updated:{" "}
+              {new Intl.DateTimeFormat(
+                "en-US",
+                {
+                  dateStyle: "long",
+                  timeStyle: "short",
+                },
+              ).format(
+                new Date(
+                  draftPoolResponse.cachedAt,
+                ),
+              )}
+              {draftPoolResponse.stale
+                ? " · Cached fallback"
+                : ""}
+            </span>
+          </div>
+        )}
+
       {!draftIsComplete ? (
         <div className="on-clock-card">
         <div className="on-clock-manager">
@@ -1093,110 +1336,320 @@ function DraftRoom({
         </div>
       )}
 
-      {!draftIsComplete &&
-        isUserOnClock && (
-        <div className="your-turn-banner">
-          <div className="your-turn-message">
-            <span className="your-turn-pulse" />
+      {fantasyTeams.length > 0 && (() => {
+        const teamCount =
+          fantasyTeams.length;
 
-            <div>
-              <p className="eyebrow">
-                You are on the clock
-              </p>
+        const roundStartPick =
+          (displayedDraftRound - 1) *
+            teamCount +
+          1;
 
-              <strong>
-                Thunder ⚡ — build your team
-              </strong>
+        const isViewingLiveRound =
+          viewedDraftRound === null ||
+          displayedDraftRound ===
+            liveDraftRound;
+
+        return (
+          <section className="draft-round-rail-card">
+            <div className="draft-round-rail-heading">
+              <div>
+                <p className="eyebrow">
+                  {isViewingLiveRound
+                    ? "Live draft tracker"
+                    : "Draft history"}
+                </p>
+
+                <h3>
+                  Round {displayedDraftRound}
+                </h3>
+              </div>
+
+              <div className="draft-round-navigation">
+                <button
+                  className="draft-round-nav-button"
+                  disabled={
+                    displayedDraftRound <= 1
+                  }
+                  onClick={() =>
+                    setViewedDraftRound(
+                      Math.max(
+                        1,
+                        displayedDraftRound - 1,
+                      ),
+                    )
+                  }
+                  type="button"
+                >
+                  ← Previous
+                </button>
+
+                <button
+                  className={`draft-round-nav-button ${
+                    isViewingLiveRound
+                      ? "active-draft-round-nav"
+                      : ""
+                  }`}
+                  onClick={() =>
+                    setViewedDraftRound(null)
+                  }
+                  type="button"
+                >
+                  Live Round {liveDraftRound}
+                </button>
+
+                <button
+                  className="draft-round-nav-button"
+                  disabled={
+                    displayedDraftRound >=
+                    totalDraftRounds
+                  }
+                  onClick={() =>
+                    setViewedDraftRound(
+                      Math.min(
+                        totalDraftRounds,
+                        displayedDraftRound + 1,
+                      ),
+                    )
+                  }
+                  type="button"
+                >
+                  Next →
+                </button>
+
+                <span className="draft-round-recorded-count">
+                  {draftPicks.length} recorded
+                </span>
+              </div>
             </div>
-          </div>
 
-          <span>
-            {picksUntilNextTurn === null
-              ? "Recommendations are ready"
-              : `${picksUntilNextTurn} picks until your next turn`}
-          </span>
-        </div>
-      )}
+            <div className="draft-round-rail-shell">
+              <button
+                aria-label="Scroll draft ticker left"
+                className="draft-round-scroll-button draft-round-scroll-left"
+                onClick={() =>
+                  draftRoundRailRef.current?.scrollBy({
+                    behavior: "smooth",
+                    left: -520,
+                  })
+                }
+                type="button"
+              >
+                ‹
+              </button>
 
-      {!draftIsComplete &&
-        isUserOnClock && (
-        <RecommendationsPanel
-          availablePlayers={
-            availablePlayers
-          }
-          currentOverallPick={
-            nextOverallPick
-          }
-          picksUntilNextTurn={
-            picksUntilNextTurn
-          }
-          recentDraftedPlayers={
-            recentDraftedPlayers
-          }
-          userDraftedPlayers={
-            userDraftedPlayers
-          }
-          onDraftPlayer={draftPlayer}
-        />
-      )}
+              <div
+                className="draft-round-rail"
+                ref={draftRoundRailRef}
+              >
+              {Array.from(
+                { length: teamCount },
+                (_, roundIndex) => {
+                  const overallPick =
+                    roundStartPick +
+                    roundIndex;
 
-      {draftPoolLoading && (
-        <div className="draft-pool-status">
-          <strong>
-            Loading 2026 draft pool…
-          </strong>
+                  const recordedPick =
+                    draftPicks.find(
+                      (pick) =>
+                        pick.overallPick ===
+                        overallPick,
+                    );
 
-          <span>
-            Retrieving players, rookies, and ADP.
-          </span>
-        </div>
-      )}
+                  const isCurrentPick =
+                    !draftIsComplete &&
+                    overallPick ===
+                      nextOverallPick;
 
-      {draftPoolError && (
-        <div className="draft-pool-status draft-pool-error">
-          <strong>
-            Draft pool unavailable
-          </strong>
+                  const draftOrderIndex =
+                    displayedDraftRound % 2 === 1
+                      ? roundIndex
+                      : teamCount -
+                        roundIndex -
+                        1;
 
-          <span>{draftPoolError}</span>
-        </div>
-      )}
+                  const fantasyTeamId =
+                    draftOrder[
+                      draftOrderIndex
+                    ];
 
-      {!draftPoolLoading &&
-        !draftPoolError &&
-        draftPoolResponse && (
-          <div className="draft-pool-status">
-            <strong>
-              {draftPoolResponse.draftSeason} half-PPR pool
-            </strong>
+                  const fantasyTeam =
+                    fantasyTeams.find(
+                      (team) =>
+                        team.id ===
+                        fantasyTeamId,
+                    );
 
-            <span>
-              {draftPoolResponse.playerCount} players ·{" "}
-              {draftPoolResponse.rookieCount} rookies ·{" "}
-              {draftPoolResponse.matchedAdpPlayerCount} ADP matches
-              {draftPoolResponse.stale
-                ? " · cached fallback"
-                : ""}
-            </span>
-            <span className="draft-data-updated">
-              Player data updated:{" "}
-              {new Intl.DateTimeFormat(
-                "en-US",
-                {
-                  dateStyle: "long",
-                  timeStyle: "short",
+                  const nflTeamBrand =
+                    recordedPick
+                      ? getNflTeamBrand(
+                          recordedPick
+                            .player.nflTeam,
+                        )
+                      : null;
+
+                  const primaryColor =
+                    nflTeamBrand
+                      ?.primaryColor ??
+                    (isCurrentPick
+                      ? "#14532D"
+                      : "#111827");
+
+                  const secondaryColor =
+                    nflTeamBrand
+                      ?.secondaryColor ??
+                    (isCurrentPick
+                      ? "#4ADE80"
+                      : "#6B7280");
+
+                  const roundPickLabel =
+                    `${displayedDraftRound}.` +
+                    String(
+                      roundIndex + 1,
+                    ).padStart(2, "0");
+
+                  return (
+                    <article
+                      className={[
+                        "draft-round-pick",
+                        recordedPick
+                          ? "completed-round-pick"
+                          : "",
+                        isCurrentPick
+                          ? "current-round-pick"
+                          : "",
+                        fantasyTeam?.isUser
+                          ? "user-round-pick"
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      key={overallPick}
+                      style={{
+                        borderColor:
+                          `${secondaryColor}99`,
+                        background:
+                          `linear-gradient(145deg, ${primaryColor}CC, rgba(7, 10, 14, 0.98))`,
+                      }}
+                    >
+                      <div className="draft-round-pick-topline">
+                        <span>
+                          {roundPickLabel}
+                        </span>
+
+                        <strong>
+                          #{overallPick}
+                        </strong>
+                      </div>
+
+                      {recordedPick ? (
+                        <>
+                          <div className="draft-round-player-summary">
+                            {nflTeamBrand ? (
+                              <img
+                                alt=""
+                                aria-hidden="true"
+                                className="draft-round-nfl-logo"
+                                src={
+                                  nflTeamBrand.logoUrl
+                                }
+                              />
+                            ) : (
+                              <span className="draft-round-nfl-logo-fallback">
+                                🏈
+                              </span>
+                            )}
+
+                            <div className="draft-round-player-copy">
+                              <strong className="draft-round-player-name">
+                                {
+                                  recordedPick
+                                    .player.name
+                                }
+                              </strong>
+
+                              <span className="draft-round-player-meta">
+                                {
+                                  recordedPick
+                                    .player
+                                    .position
+                                }{" "}
+                                ·{" "}
+                                {
+                                  recordedPick
+                                    .player
+                                    .nflTeam
+                                }
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="draft-round-manager-brand">
+                            <span>
+                              {fantasyTeam?.emoji ??
+                                "🏈"}
+                            </span>
+
+                            <small>
+                              {fantasyTeam?.name ??
+                                "Unknown"}
+                            </small>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="draft-round-manager-brand pending-manager-brand">
+                            <span>
+                              {fantasyTeam?.emoji ??
+                                "🏈"}
+                            </span>
+
+                            <strong>
+                              {fantasyTeam?.name ??
+                                "Unknown team"}
+                            </strong>
+                          </div>
+
+                          {isCurrentPick ? (
+                            <>
+                              <strong className="draft-round-current-label">
+                                On the Clock
+                              </strong>
+
+                            </>
+                          ) : (
+                            <>
+                              <strong className="draft-round-pending-label">
+                                Pending
+                              </strong>
+
+                            </>
+                          )}
+                        </>
+                      )}
+                    </article>
+                  );
                 },
-              ).format(
-                new Date(
-                  draftPoolResponse.cachedAt,
-                ),
               )}
-              {draftPoolResponse.stale
-                ? " · Cached fallback"
-                : ""}
-            </span>
-          </div>
-        )}
+              </div>
+
+              <button
+                aria-label="Scroll draft ticker right"
+                className="draft-round-scroll-button draft-round-scroll-right"
+                onClick={() =>
+                  draftRoundRailRef.current?.scrollBy({
+                    behavior: "smooth",
+                    left: 520,
+                  })
+                }
+                type="button"
+              >
+                ›
+              </button>
+            </div>
+          </section>
+        );
+      })()}
 
       <div className="draft-room-layout">
         <div className="draft-main-column">
@@ -1218,9 +1671,6 @@ function DraftRoom({
             }
           />
 
-          <MyRoster
-            players={userDraftedPlayers}
-          />
         </div>
 
         <div className="draft-sidebar">
@@ -1375,85 +1825,10 @@ function DraftRoom({
             </div>
           </aside>
 
-          <aside className="draft-history-card">
-            <div className="draft-history-heading">
-              <div>
-                <p className="eyebrow">
-                  Selections
-                </p>
+          <MyRoster
+            players={userDraftedPlayers}
+          />
 
-                <h3>Draft History</h3>
-              </div>
-
-              <span>
-                {draftPicks.length} recorded
-              </span>
-            </div>
-
-            {draftPicks.length === 0 ? (
-              <div className="draft-empty-state">
-                <strong>
-                  No picks recorded yet
-                </strong>
-
-                <span>
-                  Select a player from the
-                  board to record the next
-                  pick.
-                </span>
-              </div>
-            ) : (
-              <div className="draft-pick-list">
-                {[...draftPicks]
-                  .reverse()
-                  .map((pick) => {
-                    const fantasyTeam =
-                      fantasyTeams.find(
-                        (team) =>
-                          team.id ===
-                          pick.fantasyTeamId,
-                      );
-
-                    return (
-                      <article
-                        className={`draft-pick ${
-                          fantasyTeam?.isUser
-                            ? "user-draft-pick"
-                            : ""
-                        }`}
-                        key={pick.id}
-                      >
-                        <span className="draft-pick-number">
-                          {pick.overallPick}
-                        </span>
-
-                        <div className="draft-pick-player">
-                          <strong>
-                            {pick.player.name}
-                          </strong>
-
-                          <span>
-                            {pick.player.position} ·{" "}
-                            {pick.player.nflTeam}
-                          </span>
-                        </div>
-
-                        <div className="draft-pick-manager">
-                          <span>
-                            {fantasyTeam?.emoji}
-                          </span>
-
-                          <strong>
-                            {fantasyTeam?.name ??
-                              "Unknown"}
-                          </strong>
-                        </div>
-                      </article>
-                    );
-                  })}
-              </div>
-            )}
-          </aside>
         </div>
       </div>
       {showDraftResults &&

@@ -1,0 +1,1294 @@
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
+
+import {
+  fetchDraftPlayers,
+} from "../api/client";
+
+import {
+  mapApiDraftPlayers,
+} from "../api/draftPlayers";
+
+import {
+  fantasyTeams,
+} from "../data/league";
+
+import {
+  getNflTeamBrand,
+} from "../data/nflTeams";
+
+import type {
+  Player,
+} from "../types";
+
+import {
+  getFantasyTeamForPick,
+  getPickDetails,
+  getPicksUntilNextTurn,
+  getUserOverallPicks,
+} from "../utils/draft";
+
+import {
+  createMockDraftSeed,
+  createSeededRandom,
+  selectCpuDraftPlayer,
+  type MockDraftCpuStyle,
+} from "../utils/mockDraftEngine";
+
+import {
+  FANTASY_ROSTER_LIMIT,
+} from "../utils/rosterLimits";
+
+import MyRoster from "./MyRoster";
+import PlayerBoard from "./PlayerBoard";
+import RecommendationsPanel from "./RecommendationsPanel";
+
+export interface MockDraftSettings {
+  draftSlot: number;
+  rounds: number;
+  cpuStyle: MockDraftCpuStyle;
+}
+
+interface MockDraftPick {
+  id: string;
+  overallPick: number;
+  fantasyTeamId: string;
+  player: Player;
+}
+
+interface MockDraftSession {
+  settings: MockDraftSettings;
+  seed: number;
+  draftOrder: string[];
+  playerPool: Player[];
+  picks: MockDraftPick[];
+  currentOverallPick: number;
+}
+
+/**
+ * Places Thunder in the selected mock-draft slot.
+ */
+function buildMockDraftOrder(
+  draftSlot: number,
+): string[] {
+  const userTeam =
+    fantasyTeams.find(
+      (team) => team.isUser,
+    );
+
+  if (!userTeam) {
+    throw new Error(
+      "The Thunder fantasy team was not found.",
+    );
+  }
+
+  const draftOrder =
+    fantasyTeams
+      .filter(
+        (team) => !team.isUser,
+      )
+      .map((team) => team.id);
+
+  draftOrder.splice(
+    draftSlot - 1,
+    0,
+    userTeam.id,
+  );
+
+  return draftOrder;
+}
+
+/**
+ * Returns the fantasy team selecting at an overall pick.
+ */
+function getMockTeamIdForPick(
+  draftOrder: string[],
+  overallPick: number,
+): string | null {
+  const fantasySlot =
+    getFantasyTeamForPick(
+      overallPick,
+      fantasyTeams.length,
+      "snake",
+    );
+
+  return (
+    draftOrder[fantasySlot - 1] ??
+    null
+  );
+}
+
+/**
+ * Displays the CPU style as a readable label.
+ */
+function getCpuStyleLabel(
+  cpuStyle: MockDraftCpuStyle,
+): string {
+  if (cpuStyle === "adp-heavy") {
+    return "ADP Heavy";
+  }
+
+  if (cpuStyle === "chaotic") {
+    return "Chaotic";
+  }
+
+  return "Balanced";
+}
+
+/**
+ * Displays the independent mock-draft setup and active board.
+ */
+function MockDraftSetup() {
+  const [
+    draftSlot,
+    setDraftSlot,
+  ] = useState(6);
+
+  const [
+    rounds,
+    setRounds,
+  ] = useState(15);
+
+  const [
+    cpuStyle,
+    setCpuStyle,
+  ] =
+    useState<MockDraftCpuStyle>(
+      "balanced",
+    );
+
+  const [
+    session,
+    setSession,
+  ] =
+    useState<MockDraftSession | null>(
+      null,
+    );
+
+  const [
+    startingDraft,
+    setStartingDraft,
+  ] = useState(false);
+
+  const [
+    startError,
+    setStartError,
+  ] =
+    useState<string | null>(null);
+
+  const mockTickerRef =
+    useRef<HTMLDivElement | null>(
+      null,
+    );
+
+  /**
+   * Makes one CPU selection, then lets the next render
+   * schedule the following pick.
+   */
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    const totalPicks =
+      session.settings.rounds *
+      fantasyTeams.length;
+
+    if (
+      session.currentOverallPick >
+      totalPicks
+    ) {
+      return;
+    }
+
+    const currentFantasyTeamId =
+      getMockTeamIdForPick(
+        session.draftOrder,
+        session.currentOverallPick,
+      );
+
+    const userTeam =
+      fantasyTeams.find(
+        (team) => team.isUser,
+      );
+
+    if (
+      !currentFantasyTeamId ||
+      !userTeam ||
+      currentFantasyTeamId ===
+        userTeam.id
+    ) {
+      return;
+    }
+
+    const timer =
+      window.setTimeout(() => {
+        setSession(
+          (currentSession) => {
+            if (
+              !currentSession ||
+              currentSession.currentOverallPick !==
+                session.currentOverallPick
+            ) {
+              return currentSession;
+            }
+
+            const draftedPlayerIds =
+              new Set(
+                currentSession.picks.map(
+                  (pick) =>
+                    pick.player.id,
+                ),
+              );
+
+            const availablePlayers =
+              currentSession.playerPool.filter(
+                (player) =>
+                  !draftedPlayerIds.has(
+                    player.id,
+                  ),
+              );
+
+            const cpuRoster =
+              currentSession.picks
+                .filter(
+                  (pick) =>
+                    pick.fantasyTeamId ===
+                    currentFantasyTeamId,
+                )
+                .map(
+                  (pick) => pick.player,
+                );
+
+            /*
+             * Gives each pick its own repeatable random stream.
+             */
+            const random =
+              createSeededRandom(
+                currentSession.seed +
+                  currentSession.currentOverallPick *
+                    104729,
+              );
+
+            const selectedPlayer =
+              selectCpuDraftPlayer({
+                availablePlayers,
+                roster: cpuRoster,
+                overallPick:
+                  currentSession.currentOverallPick,
+                cpuStyle:
+                  currentSession.settings
+                    .cpuStyle,
+                teamCount:
+                  fantasyTeams.length,
+                random,
+              });
+
+            if (!selectedPlayer) {
+              return {
+                ...currentSession,
+                currentOverallPick:
+                  currentSession.currentOverallPick +
+                  1,
+              };
+            }
+
+            const newPick: MockDraftPick = {
+              id:
+                `mock-${currentSession.seed}-` +
+                `${currentSession.currentOverallPick}-` +
+                selectedPlayer.id,
+              overallPick:
+                currentSession.currentOverallPick,
+              fantasyTeamId:
+                currentFantasyTeamId,
+              player:
+                selectedPlayer,
+            };
+
+            return {
+              ...currentSession,
+              picks: [
+                ...currentSession.picks,
+                newPick,
+              ],
+              currentOverallPick:
+                currentSession.currentOverallPick +
+                1,
+            };
+          },
+        );
+      }, 520);
+
+    return () =>
+      window.clearTimeout(timer);
+  }, [session]);
+
+  /**
+   * Keeps the active selection centered as CPU picks appear.
+   */
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    const frame =
+      window.requestAnimationFrame(
+        () => {
+          const totalPicks =
+            session.settings.rounds *
+            fantasyTeams.length;
+
+          const targetOverallPick =
+            Math.min(
+              session.currentOverallPick,
+              totalPicks,
+            );
+
+          const activeCard =
+            mockTickerRef.current
+              ?.querySelector<HTMLElement>(
+                `[data-overall-pick="${targetOverallPick}"]`,
+              );
+
+          activeCard?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+            inline: "center",
+          });
+        },
+      );
+
+    return () =>
+      window.cancelAnimationFrame(
+        frame,
+      );
+  }, [
+    session?.currentOverallPick,
+    session?.settings.rounds,
+  ]);
+
+  /**
+   * Loads the real player pool and begins at pick 1.
+   */
+  async function startMockDraft(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    try {
+      setStartingDraft(true);
+      setStartError(null);
+
+      const response =
+        await fetchDraftPlayers();
+
+      const playerPool =
+        mapApiDraftPlayers(
+          response.players,
+        );
+
+      if (playerPool.length === 0) {
+        throw new Error(
+          "The 2026 player pool is empty.",
+        );
+      }
+
+      setSession({
+        settings: {
+          draftSlot,
+          rounds,
+          cpuStyle,
+        },
+        seed: createMockDraftSeed(),
+        draftOrder:
+          buildMockDraftOrder(
+            draftSlot,
+          ),
+        playerPool,
+        picks: [],
+        currentOverallPick: 1,
+      });
+    } catch (error) {
+      setStartError(
+        error instanceof Error
+          ? error.message
+          : "Unable to start the mock draft.",
+      );
+    } finally {
+      setStartingDraft(false);
+    }
+  }
+
+  /**
+   * Records Thunder's selection and resumes CPU drafting.
+   */
+  function draftMockPlayer(
+    player: Player,
+  ) {
+    const userTeam =
+      fantasyTeams.find(
+        (team) => team.isUser,
+      );
+
+    if (!userTeam) {
+      return;
+    }
+
+    setSession(
+      (currentSession) => {
+        if (!currentSession) {
+          return currentSession;
+        }
+
+        const totalPicks =
+          currentSession.settings.rounds *
+          fantasyTeams.length;
+
+        if (
+          currentSession.currentOverallPick >
+          totalPicks
+        ) {
+          return currentSession;
+        }
+
+        const currentFantasyTeamId =
+          getMockTeamIdForPick(
+            currentSession.draftOrder,
+            currentSession.currentOverallPick,
+          );
+
+        if (
+          currentFantasyTeamId !==
+          userTeam.id
+        ) {
+          return currentSession;
+        }
+
+        const playerAlreadyDrafted =
+          currentSession.picks.some(
+            (pick) =>
+              pick.player.id ===
+              player.id,
+          );
+
+        if (playerAlreadyDrafted) {
+          return currentSession;
+        }
+
+        const userRosterCount =
+          currentSession.picks.filter(
+            (pick) =>
+              pick.fantasyTeamId ===
+              userTeam.id,
+          ).length;
+
+        if (
+          userRosterCount >=
+          FANTASY_ROSTER_LIMIT
+        ) {
+          return currentSession;
+        }
+
+        const newPick: MockDraftPick = {
+          id:
+            `mock-${currentSession.seed}-` +
+            `${currentSession.currentOverallPick}-` +
+            player.id,
+          overallPick:
+            currentSession.currentOverallPick,
+          fantasyTeamId:
+            userTeam.id,
+          player,
+        };
+
+        return {
+          ...currentSession,
+          picks: [
+            ...currentSession.picks,
+            newPick,
+          ],
+          currentOverallPick:
+            currentSession.currentOverallPick +
+            1,
+        };
+      },
+    );
+  }
+
+  if (session) {
+    const teamCount =
+      fantasyTeams.length;
+
+    const totalPicks =
+      session.settings.rounds *
+      teamCount;
+
+    const draftIsComplete =
+      session.currentOverallPick >
+      totalPicks;
+
+    const userTeam =
+      fantasyTeams.find(
+        (team) => team.isUser,
+      );
+
+    const currentFantasyTeamId =
+      draftIsComplete
+        ? null
+        : getMockTeamIdForPick(
+            session.draftOrder,
+            session.currentOverallPick,
+          );
+
+    const currentFantasyTeam =
+      fantasyTeams.find(
+        (team) =>
+          team.id ===
+          currentFantasyTeamId,
+      );
+
+    const isUserOnClock =
+      !draftIsComplete &&
+      currentFantasyTeamId ===
+        userTeam?.id;
+
+    const isCpuDrafting =
+      !draftIsComplete &&
+      !isUserOnClock;
+
+    const draftedPlayerIds =
+      session.picks.map(
+        (pick) => pick.player.id,
+      );
+
+    const availablePlayers =
+      session.playerPool.filter(
+        (player) =>
+          !draftedPlayerIds.includes(
+            player.id,
+          ),
+      );
+
+    const userDraftedPlayers =
+      session.picks
+        .filter(
+          (pick) =>
+            pick.fantasyTeamId ===
+            userTeam?.id,
+        )
+        .map((pick) => pick.player);
+
+    const userRosterIsFull =
+      userDraftedPlayers.length >=
+      FANTASY_ROSTER_LIMIT;
+
+    const displayedRound =
+      draftIsComplete
+        ? session.settings.rounds
+        : Math.floor(
+            (session.currentOverallPick -
+              1) /
+              teamCount,
+          ) + 1;
+
+    const roundStartPick =
+      (displayedRound - 1) *
+        teamCount +
+      1;
+
+    const currentPickDetails =
+      draftIsComplete
+        ? null
+        : getPickDetails(
+            session.currentOverallPick,
+            teamCount,
+            "snake",
+          );
+
+    const userOverallPicks =
+      getUserOverallPicks(
+        session.settings.draftSlot,
+        teamCount,
+        session.settings.rounds,
+        "snake",
+      );
+
+    const picksUntilNextTurn =
+      draftIsComplete
+        ? null
+        : getPicksUntilNextTurn(
+            session.currentOverallPick,
+            userOverallPicks,
+          );
+
+    const recentDraftedPlayers =
+      session.picks
+        .slice(-6)
+        .map((pick) => pick.player);
+
+    return (
+      <section className="draft-room mock-draft-room">
+        <div className="mock-live-heading">
+          <div>
+            <p className="eyebrow">
+              Mock draft simulator
+            </p>
+
+            <h2>
+              {draftIsComplete
+                ? "Mock Draft Complete"
+                : isUserOnClock
+                  ? "You Are on the Clock"
+                  : "CPU Drafting…"}
+            </h2>
+
+            <p>
+              {draftIsComplete
+                ? `${session.picks.length} selections completed.`
+                : `Round ${currentPickDetails?.round}, pick ${currentPickDetails?.pickInRound} — overall #${session.currentOverallPick}`}
+            </p>
+          </div>
+
+          <div className="mock-live-actions">
+            <span
+              className={[
+                "mock-simulation-status",
+                isUserOnClock
+                  ? "mock-user-turn-status"
+                  : "",
+                isCpuDrafting
+                  ? "mock-cpu-turn-status"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              {draftIsComplete
+                ? "✓ Complete"
+                : isUserOnClock
+                  ? "⚡ Thunder"
+                  : `${currentFantasyTeam?.emoji ?? "🏈"} ${currentFantasyTeam?.name ?? "CPU"}`}
+            </span>
+
+            <button
+              className="secondary-button compact-button"
+              onClick={() =>
+                setSession(null)
+              }
+              type="button"
+            >
+              Return to Setup
+            </button>
+          </div>
+        </div>
+
+        <div className="mock-session-summary">
+          <div>
+            <span>Draft slot</span>
+
+            <strong>
+              #{session.settings.draftSlot}
+            </strong>
+          </div>
+
+          <div>
+            <span>CPU style</span>
+
+            <strong>
+              {getCpuStyleLabel(
+                session.settings.cpuStyle,
+              )}
+            </strong>
+          </div>
+
+          <div>
+            <span>Progress</span>
+
+            <strong>
+              {session.picks.length}/
+              {totalPicks}
+            </strong>
+          </div>
+
+          <div>
+            <span>Scenario</span>
+
+            <strong>
+              #{session.seed}
+            </strong>
+          </div>
+        </div>
+
+        <section className="mock-draft-ticker-card">
+          <div className="mock-draft-ticker-heading">
+            <div>
+              <p className="eyebrow">
+                Live mock selections
+              </p>
+
+              <h3>
+                Round {displayedRound}
+              </h3>
+            </div>
+
+            <span>
+              {isCpuDrafting
+                ? "Selections are running automatically"
+                : isUserOnClock
+                  ? "Make your selection below"
+                  : "Draft finished"}
+            </span>
+          </div>
+
+          <div className="draft-round-rail-shell">
+            <button
+              aria-label="Scroll mock ticker left"
+              className="draft-round-scroll-button draft-round-scroll-left"
+              onClick={() =>
+                mockTickerRef.current?.scrollBy({
+                  behavior: "smooth",
+                  left: -520,
+                })
+              }
+              type="button"
+            >
+              ‹
+            </button>
+
+            <div
+              className="draft-round-rail"
+              ref={mockTickerRef}
+            >
+              {Array.from(
+                { length: teamCount },
+                (_, roundIndex) => {
+                  const overallPick =
+                    roundStartPick +
+                    roundIndex;
+
+                  const recordedPick =
+                    session.picks.find(
+                      (pick) =>
+                        pick.overallPick ===
+                        overallPick,
+                    );
+
+                  const isCurrentPick =
+                    !draftIsComplete &&
+                    overallPick ===
+                      session.currentOverallPick;
+
+                  const fantasyTeamId =
+                    getMockTeamIdForPick(
+                      session.draftOrder,
+                      overallPick,
+                    );
+
+                  const fantasyTeam =
+                    fantasyTeams.find(
+                      (team) =>
+                        team.id ===
+                        fantasyTeamId,
+                    );
+
+                  const nflTeamBrand =
+                    recordedPick
+                      ? getNflTeamBrand(
+                          recordedPick.player
+                            .nflTeam,
+                        )
+                      : null;
+
+                  const primaryColor =
+                    nflTeamBrand
+                      ?.primaryColor ??
+                    (isCurrentPick
+                      ? "#14532D"
+                      : "#111827");
+
+                  const secondaryColor =
+                    nflTeamBrand
+                      ?.secondaryColor ??
+                    (isCurrentPick
+                      ? "#4ADE80"
+                      : "#6B7280");
+
+                  const roundPickLabel =
+                    `${displayedRound}.` +
+                    String(
+                      roundIndex + 1,
+                    ).padStart(2, "0");
+
+                  return (
+                    <article
+                      className={[
+                        "draft-round-pick",
+                        recordedPick
+                          ? "completed-round-pick mock-completed-pick"
+                          : "",
+                        isCurrentPick
+                          ? "current-round-pick"
+                          : "",
+                        fantasyTeam?.isUser
+                          ? "user-round-pick"
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      data-overall-pick={
+                        overallPick
+                      }
+                      key={overallPick}
+                      style={{
+                        borderColor:
+                          `${secondaryColor}99`,
+                        background:
+                          `linear-gradient(145deg, ${primaryColor}CC, rgba(7, 10, 14, 0.98))`,
+                      }}
+                    >
+                      <div className="draft-round-pick-topline">
+                        <span>
+                          {roundPickLabel}
+                        </span>
+
+                        <strong>
+                          #{overallPick}
+                        </strong>
+                      </div>
+
+                      {recordedPick ? (
+                        <>
+                          <div className="draft-round-player-summary">
+                            {nflTeamBrand ? (
+                              <img
+                                alt=""
+                                aria-hidden="true"
+                                className="draft-round-nfl-logo"
+                                src={
+                                  nflTeamBrand.logoUrl
+                                }
+                              />
+                            ) : (
+                              <span className="draft-round-nfl-logo-fallback">
+                                🏈
+                              </span>
+                            )}
+
+                            <div className="draft-round-player-copy">
+                              <strong className="draft-round-player-name">
+                                {
+                                  recordedPick
+                                    .player.name
+                                }
+                              </strong>
+
+                              <span className="draft-round-player-meta">
+                                {
+                                  recordedPick
+                                    .player.position
+                                }{" "}
+                                ·{" "}
+                                {
+                                  recordedPick
+                                    .player.nflTeam
+                                }
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="draft-round-manager-brand">
+                            <span>
+                              {fantasyTeam?.emoji ??
+                                "🏈"}
+                            </span>
+
+                            <small>
+                              {fantasyTeam?.name ??
+                                "Unknown"}
+                            </small>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="draft-round-manager-brand pending-manager-brand">
+                            <span>
+                              {fantasyTeam?.emoji ??
+                                "🏈"}
+                            </span>
+
+                            <strong>
+                              {fantasyTeam?.name ??
+                                "Unknown team"}
+                            </strong>
+                          </div>
+
+                          <strong
+                            className={
+                              isCurrentPick
+                                ? "draft-round-current-label"
+                                : "draft-round-pending-label"
+                            }
+                          >
+                            {isCurrentPick
+                              ? fantasyTeam?.isUser
+                                ? "On the Clock"
+                                : "Selecting…"
+                              : "Pending"}
+                          </strong>
+                        </>
+                      )}
+                    </article>
+                  );
+                },
+              )}
+            </div>
+
+            <button
+              aria-label="Scroll mock ticker right"
+              className="draft-round-scroll-button draft-round-scroll-right"
+              onClick={() =>
+                mockTickerRef.current?.scrollBy({
+                  behavior: "smooth",
+                  left: 520,
+                })
+              }
+              type="button"
+            >
+              ›
+            </button>
+          </div>
+        </section>
+
+        <div className="draft-room-layout">
+          <div className="draft-main-column">
+            <PlayerBoard
+              players={
+                session.playerPool
+              }
+              draftedPlayerIds={
+                draftedPlayerIds
+              }
+              isRosterFull={
+                userRosterIsFull
+              }
+              isUserOnClock={
+                isUserOnClock
+              }
+              onDraftPlayer={
+                draftMockPlayer
+              }
+              rosterCount={
+                userDraftedPlayers.length
+              }
+              rosterLimit={
+                FANTASY_ROSTER_LIMIT
+              }
+            />
+          </div>
+
+          <div className="draft-sidebar">
+            <RecommendationsPanel
+              availablePlayers={
+                availablePlayers
+              }
+              userDraftedPlayers={
+                userDraftedPlayers
+              }
+              recentDraftedPlayers={
+                recentDraftedPlayers
+              }
+              currentOverallPick={
+                Math.min(
+                  session.currentOverallPick,
+                  totalPicks,
+                )
+              }
+              picksUntilNextTurn={
+                picksUntilNextTurn
+              }
+              isRosterFull={
+                userRosterIsFull
+              }
+              isUserOnClock={
+                isUserOnClock
+              }
+              rosterCount={
+                userDraftedPlayers.length
+              }
+              rosterLimit={
+                FANTASY_ROSTER_LIMIT
+              }
+              onDraftPlayer={
+                draftMockPlayer
+              }
+            />
+
+            <MyRoster
+              players={
+                userDraftedPlayers
+              }
+            />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mock-draft-page">
+      <div className="mock-draft-heading">
+        <div>
+          <p className="eyebrow">
+            Practice draft laboratory
+          </p>
+
+          <h2>Mock Draft Simulator</h2>
+
+          <p>
+            Practice from any draft slot without
+            changing your saved live draft.
+          </p>
+        </div>
+
+        <span className="mock-draft-status">
+          Practice mode
+        </span>
+      </div>
+
+      <div className="mock-draft-setup-layout">
+        <form
+          className="mock-draft-setup-card"
+          onSubmit={startMockDraft}
+        >
+          <div className="mock-setup-card-heading">
+            <div>
+              <p className="eyebrow">
+                Simulation settings
+              </p>
+
+              <h3>Configure Your Draft</h3>
+            </div>
+
+            <span>
+              12 teams · Half-PPR
+            </span>
+          </div>
+
+          <div className="mock-setup-fields">
+            <label className="mock-setup-field">
+              <span>Your draft slot</span>
+
+              <select
+                disabled={startingDraft}
+                onChange={(event) =>
+                  setDraftSlot(
+                    Number(
+                      event.target.value,
+                    ),
+                  )
+                }
+                value={draftSlot}
+              >
+                {Array.from(
+                  { length: 12 },
+                  (_, index) =>
+                    index + 1,
+                ).map((slot) => (
+                  <option
+                    key={slot}
+                    value={slot}
+                  >
+                    Pick {slot}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="mock-setup-field">
+              <span>
+                Simulation length
+              </span>
+
+              <select
+                disabled={startingDraft}
+                onChange={(event) =>
+                  setRounds(
+                    Number(
+                      event.target.value,
+                    ),
+                  )
+                }
+                value={rounds}
+              >
+                <option value={8}>
+                  8 rounds · Quick
+                </option>
+
+                <option value={12}>
+                  12 rounds · Extended
+                </option>
+
+                <option value={15}>
+                  15 rounds · Full draft
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <fieldset
+            className="mock-cpu-style-fieldset"
+            disabled={startingDraft}
+          >
+            <legend>
+              CPU draft behavior
+            </legend>
+
+            <label
+              className={`mock-cpu-style-option ${
+                cpuStyle === "balanced"
+                  ? "active-mock-cpu-style"
+                  : ""
+              }`}
+            >
+              <input
+                checked={
+                  cpuStyle === "balanced"
+                }
+                name="cpu-style"
+                onChange={() =>
+                  setCpuStyle("balanced")
+                }
+                type="radio"
+              />
+
+              <div>
+                <strong>Balanced</strong>
+
+                <span>
+                  Rankings, ADP, roster needs,
+                  and positional value.
+                </span>
+              </div>
+            </label>
+
+            <label
+              className={`mock-cpu-style-option ${
+                cpuStyle === "adp-heavy"
+                  ? "active-mock-cpu-style"
+                  : ""
+              }`}
+            >
+              <input
+                checked={
+                  cpuStyle === "adp-heavy"
+                }
+                name="cpu-style"
+                onChange={() =>
+                  setCpuStyle("adp-heavy")
+                }
+                type="radio"
+              />
+
+              <div>
+                <strong>ADP Heavy</strong>
+
+                <span>
+                  CPU teams stay close to
+                  current market ADP.
+                </span>
+              </div>
+            </label>
+
+            <label
+              className={`mock-cpu-style-option ${
+                cpuStyle === "chaotic"
+                  ? "active-mock-cpu-style"
+                  : ""
+              }`}
+            >
+              <input
+                checked={
+                  cpuStyle === "chaotic"
+                }
+                name="cpu-style"
+                onChange={() =>
+                  setCpuStyle("chaotic")
+                }
+                type="radio"
+              />
+
+              <div>
+                <strong>Chaotic</strong>
+
+                <span>
+                  Reaches, falling players,
+                  and positional runs.
+                </span>
+              </div>
+            </label>
+          </fieldset>
+
+          {startError && (
+            <div className="mock-start-error">
+              {startError}
+            </div>
+          )}
+
+          <button
+            className="primary-button mock-setup-save-button"
+            disabled={startingDraft}
+            type="submit"
+          >
+            {startingDraft
+              ? "Building Scenario…"
+              : "Start Mock Draft"}
+          </button>
+        </form>
+
+        <aside className="mock-draft-preview-card">
+          <p className="eyebrow">
+            Your practice scenario
+          </p>
+
+          <h3>
+            Drafting from #{draftSlot}
+          </h3>
+
+          <div className="mock-preview-stat">
+            <span>League</span>
+            <strong>
+              12-team snake
+            </strong>
+          </div>
+
+          <div className="mock-preview-stat">
+            <span>Scoring</span>
+            <strong>Half-PPR</strong>
+          </div>
+
+          <div className="mock-preview-stat">
+            <span>Rounds</span>
+            <strong>{rounds}</strong>
+          </div>
+
+          <div className="mock-preview-stat">
+            <span>CPU style</span>
+
+            <strong>
+              {getCpuStyleLabel(
+                cpuStyle,
+              )}
+            </strong>
+          </div>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+export default MockDraftSetup;

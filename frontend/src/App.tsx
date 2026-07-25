@@ -4,6 +4,7 @@ import {
 } from "react";
 import DraftRoom from "./components/DraftRoom";
 import LeaguePanel from "./components/LeaguePanel";
+import MockDraftSetup from "./components/MockDraftSetup";
 import StatsPage from "./components/StatsPage";
 import "./App.css";
 
@@ -15,6 +16,7 @@ type ApiStatus =
 type AppPage =
   | "home"
   | "draft"
+  | "mock"
   | "stats";
 
 
@@ -173,6 +175,16 @@ function App() {
                 >
                   View Player Stats
                 </button>
+
+                <button
+                  className="secondary-button mock-draft-home-button"
+                  onClick={() =>
+                    setCurrentPage("mock")
+                  }
+                  type="button"
+                >
+                  Practice Mock Draft
+                </button>
               </div>
             </div>
 
@@ -252,6 +264,10 @@ function App() {
             }
           />
         </div>
+      )}
+
+      {currentPage === "mock" && (
+        <MockDraftSetup />
       )}
 
       {currentPage === "stats" && (
