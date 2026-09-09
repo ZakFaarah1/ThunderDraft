@@ -1,0 +1,366 @@
+import {
+  describe,
+  expect,
+  it,
+} from "vitest";
+
+import type {
+  FantasyTeam,
+  Player,
+  Position,
+} from "../types";
+
+import {
+  getDraftGradingReport,
+  getDraftLetterGrade,
+  type DraftGradePick,
+} from "./draftGrades";
+
+function createPlayer({
+  id,
+  position,
+  overallRank,
+  positionRank,
+  adp,
+}: {
+  id: string;
+  position: Position;
+  overallRank: number;
+  positionRank: number;
+  adp: number;
+}): Player {
+  return {
+    id,
+    name: id,
+    nflTeam: "TST",
+    position,
+    overallRank,
+    positionRank,
+    tier:
+      overallRank <= 24
+        ? 1
+        : overallRank <= 60
+          ? 2
+          : 4,
+    adp,
+    projectedPoints:
+      Math.max(
+        40,
+        300 - overallRank,
+      ),
+    byeWeek: 8,
+    imageUrl: null,
+  };
+}
+
+const teams: FantasyTeam[] = [
+  {
+    id: "strong",
+    name: "Strong",
+    emoji: "⚡",
+    isUser: true,
+    draftSlot: 1,
+  },
+  {
+    id: "weak",
+    name: "Weak",
+    emoji: "🧪",
+    isUser: false,
+    draftSlot: 2,
+  },
+];
+
+function buildRoster(
+  teamId: string,
+  strengthOffset: number,
+  startPick: number,
+): DraftGradePick[] {
+  const positions: Position[] = [
+    "QB",
+    "RB",
+    "RB",
+    "WR",
+    "WR",
+    "TE",
+    "RB",
+    "K",
+    "DST",
+    "WR",
+    "RB",
+    "WR",
+    "TE",
+    "RB",
+    "WR",
+  ];
+
+  const positionCounts: Record<
+    Position,
+    number
+  > = {
+    QB: 0,
+    RB: 0,
+    WR: 0,
+    TE: 0,
+    K: 0,
+    DST: 0,
+  };
+
+  return positions.map(
+    (
+      position,
+      index,
+    ) => {
+      positionCounts[position] += 1;
+
+      const overallRank =
+        10 +
+        strengthOffset +
+        index * 7;
+
+      return {
+        id:
+          `${teamId}-pick-${index}`,
+        overallPick:
+          startPick +
+          index * 2,
+        fantasyTeamId:
+          teamId,
+        player:
+          createPlayer({
+            id:
+              `${teamId}-player-${index}`,
+            position,
+            overallRank,
+            positionRank:
+              positionCounts[
+                position
+              ] +
+              Math.floor(
+                strengthOffset /
+                  10,
+              ),
+            adp:
+              overallRank + 5,
+          }),
+      };
+    },
+  );
+}
+
+describe(
+  "draft grading",
+  () => {
+    it(
+      "converts scores into report-card grades",
+      () => {
+        expect(
+          getDraftLetterGrade(
+            97,
+          ),
+        ).toBe("A+");
+
+        expect(
+          getDraftLetterGrade(
+            91,
+          ),
+        ).toBe("A-");
+
+        expect(
+          getDraftLetterGrade(
+            84,
+          ),
+        ).toBe("B");
+
+        expect(
+          getDraftLetterGrade(
+            74,
+          ),
+        ).toBe("C");
+
+        expect(
+          getDraftLetterGrade(
+            61,
+          ),
+        ).toBe("D-");
+
+        expect(
+          getDraftLetterGrade(
+            59,
+          ),
+        ).toBe("F");
+      },
+    );
+
+    it(
+      "ranks the stronger roster above the weaker roster",
+      () => {
+        const report =
+          getDraftGradingReport({
+            teams,
+            picks: [
+              ...buildRoster(
+                "strong",
+                0,
+                1,
+              ),
+              ...buildRoster(
+                "weak",
+                55,
+                2,
+              ),
+            ],
+          });
+
+        expect(
+          report.teams[0]
+            .fantasyTeamId,
+        ).toBe("strong");
+
+        expect(
+          report.teams[0]
+            .overallScore,
+        ).toBeGreaterThan(
+          report.teams[1]
+            .overallScore,
+        );
+
+        expect(
+          report.teams[0]
+            .leagueRank,
+        ).toBe(1);
+      },
+    );
+
+    it(
+      "rewards a player drafted after expected value",
+      () => {
+        const valueTeam: FantasyTeam[] = [
+          {
+            id: "value",
+            name: "Value",
+            emoji: "V",
+            isUser: true,
+            draftSlot: 1,
+          },
+        ];
+
+        const picks =
+          buildRoster(
+            "value",
+            0,
+            1,
+          );
+
+        picks[0] = {
+          ...picks[0],
+          overallPick: 25,
+          player:
+            createPlayer({
+              id: "falling-star",
+              position: "RB",
+              overallRank: 5,
+              positionRank: 1,
+              adp: 5,
+            }),
+        };
+
+        const report =
+          getDraftGradingReport({
+            teams:
+              valueTeam,
+            picks,
+          });
+
+        expect(
+          report.teams[0]
+            .bestValue
+            ?.playerId,
+        ).toBe(
+          "falling-star",
+        );
+
+        expect(
+          report.teams[0]
+            .bestValue
+            ?.valueDifference,
+        ).toBeGreaterThan(
+          0,
+        );
+      },
+    );
+
+    it(
+      "penalizes excessive quarterback depth in risk management",
+      () => {
+        const balanced =
+          buildRoster(
+            "strong",
+            0,
+            1,
+          );
+
+        const overloaded =
+          buildRoster(
+            "weak",
+            0,
+            2,
+          );
+
+        overloaded[9] = {
+          ...overloaded[9],
+          player:
+            createPlayer({
+              id: "extra-qb-1",
+              position: "QB",
+              overallRank: 80,
+              positionRank: 12,
+              adp: 80,
+            }),
+        };
+
+        overloaded[10] = {
+          ...overloaded[10],
+          player:
+            createPlayer({
+              id: "extra-qb-2",
+              position: "QB",
+              overallRank: 90,
+              positionRank: 15,
+              adp: 90,
+            }),
+        };
+
+        const report =
+          getDraftGradingReport({
+            teams,
+            picks: [
+              ...balanced,
+              ...overloaded,
+            ],
+          });
+
+        const strong =
+          report.teams.find(
+            (team) =>
+              team.fantasyTeamId ===
+              "strong",
+          );
+
+        const weak =
+          report.teams.find(
+            (team) =>
+              team.fantasyTeamId ===
+              "weak",
+          );
+
+        expect(
+          weak!.riskManagement
+            .percentage,
+        ).toBeLessThan(
+          strong!.riskManagement
+            .percentage,
+        );
+      },
+    );
+  },
+);

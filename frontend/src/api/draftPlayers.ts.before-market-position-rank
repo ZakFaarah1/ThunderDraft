@@ -137,7 +137,7 @@ export function mapApiDraftPlayers(
 
   return rankedPlayers.map(
     ({ player, overallRank }) => {
-      const calculatedPositionRank =
+      const positionRank =
         (
           positionCounts.get(
             player.position,
@@ -146,14 +146,8 @@ export function mapApiDraftPlayers(
 
       positionCounts.set(
         player.position,
-        calculatedPositionRank,
+        positionRank,
       );
-
-      const positionRank =
-        player.marketPositionRank !== null &&
-        player.marketPositionRank > 0
-          ? player.marketPositionRank
-          : calculatedPositionRank;
 
       return {
         id: player.id,

@@ -4,6 +4,16 @@ export type ScoringFormat = "standard" | "half-ppr" | "ppr";
 
 export type DraftFormat = "snake" | "linear";
 
+export type DraftStrategy =
+  | "balanced"
+  | "best-player-available"
+  | "hero-rb"
+  | "zero-rb"
+  | "robust-rb"
+  | "wr-heavy"
+  | "early-elite-qb"
+  | "elite-te";
+
 export type ProjectionConfidence =
   | "High"
   | "Medium"

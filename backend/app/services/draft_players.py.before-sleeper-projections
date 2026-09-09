@@ -30,7 +30,6 @@ logger = logging.getLogger(
 )
 
 ADP_CACHE_TTL = timedelta(hours=6)
-PROJECTION_CACHE_TTL = timedelta(hours=6)
 DRAFT_TEAM_COUNT = 12
 DRAFT_SCORING_FORMAT = "half-ppr"
 
@@ -115,7 +114,6 @@ NAME_SUFFIXES = {
 }
 
 _adp_cache_lock = asyncio.Lock()
-_projection_cache_lock = asyncio.Lock()
 
 
 # Returns the configured upcoming fantasy season.
@@ -181,347 +179,6 @@ def get_adp_url(
         f"?teams={DRAFT_TEAM_COUNT}"
         f"&year={season}"
     )
-
-
-# Returns the persistent season-projection cache file.
-def get_projection_cache_file(
-    season: int,
-) -> Path:
-    """Builds the Sleeper projection cache filename."""
-
-    return (
-        get_cache_directory()
-        / f"sleeper_{season}_half_ppr_projections.json"
-    )
-
-
-# Returns the Sleeper projection endpoint for one NFL week.
-def get_projection_url(
-    season: int,
-    week: int,
-) -> str:
-    """Builds the weekly Sleeper projection URL."""
-
-    return (
-        "https://api.sleeper.app/v1/"
-        f"projections/nfl/regular/{season}/{week}"
-    )
-
-
-# Reads cached Sleeper season projections.
-def read_projection_cache(
-    season: int,
-) -> tuple[
-    dict[str, dict[str, Any]],
-    datetime,
-] | None:
-    """Loads previously aggregated Sleeper projections."""
-
-    cache_file = get_projection_cache_file(
-        season,
-    )
-
-    if not cache_file.exists():
-        return None
-
-    try:
-        envelope = json.loads(
-            cache_file.read_text(
-                encoding="utf-8",
-            ),
-        )
-
-        cached_at = datetime.fromisoformat(
-            envelope["cachedAt"],
-        )
-
-        if cached_at.tzinfo is None:
-            cached_at = cached_at.replace(
-                tzinfo=timezone.utc,
-            )
-
-        players = envelope["players"]
-
-        if not isinstance(players, dict):
-            return None
-
-        return (
-            players,
-            cached_at,
-        )
-
-    except (
-        KeyError,
-        TypeError,
-        ValueError,
-        json.JSONDecodeError,
-        OSError,
-    ):
-        logger.exception(
-            "projection_cache_read_failed season=%s",
-            season,
-        )
-
-        return None
-
-
-# Writes aggregated Sleeper projections atomically.
-def write_projection_cache(
-    season: int,
-    players: dict[str, dict[str, Any]],
-    cached_at: datetime,
-) -> None:
-    """Stores successfully aggregated season projections."""
-
-    cache_file = get_projection_cache_file(
-        season,
-    )
-
-    temporary_file = cache_file.with_suffix(
-        ".tmp",
-    )
-
-    envelope = {
-        "cachedAt": cached_at.isoformat(),
-        "players": players,
-    }
-
-    temporary_file.write_text(
-        json.dumps(
-            envelope,
-            separators=(",", ":"),
-        ),
-        encoding="utf-8",
-    )
-
-    temporary_file.replace(
-        cache_file,
-    )
-
-
-# Downloads Weeks 1-18 and creates season half-PPR totals.
-async def download_projection_data(
-    season: int,
-) -> dict[str, dict[str, Any]]:
-    """Aggregates Sleeper weekly half-PPR projections."""
-
-    async with httpx.AsyncClient(
-        follow_redirects=True,
-        timeout=45,
-    ) as client:
-
-        async def fetch_week(
-            week: int,
-        ) -> tuple[
-            int,
-            dict[str, Any],
-        ]:
-            response = await client.get(
-                get_projection_url(
-                    season,
-                    week,
-                ),
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": (
-                        "ThunderDraft/0.6 "
-                        "personal fantasy draft assistant"
-                    ),
-                },
-            )
-
-            response.raise_for_status()
-
-            data = response.json()
-
-            if not isinstance(data, dict):
-                raise ValueError(
-                    "Sleeper projection response "
-                    f"for week {week} was not an object."
-                )
-
-            return (
-                week,
-                data,
-            )
-
-        weekly_results = await asyncio.gather(
-            *[
-                fetch_week(week)
-                for week in range(1, 19)
-            ],
-        )
-
-    totals: dict[
-        str,
-        dict[str, Any],
-    ] = {}
-
-    for week, weekly_data in weekly_results:
-        for (
-            player_id,
-            projection,
-        ) in weekly_data.items():
-
-            if not isinstance(
-                projection,
-                dict,
-            ):
-                continue
-
-            points = get_optional_float(
-                projection.get(
-                    "pts_half_ppr",
-                ),
-            )
-
-            if points is None:
-                continue
-
-            player_total = totals.setdefault(
-                str(player_id),
-                {
-                    "projectedPoints": 0.0,
-                    "projectedWeeks": 0,
-                },
-            )
-
-            player_total[
-                "projectedPoints"
-            ] += points
-
-            player_total[
-                "projectedWeeks"
-            ] += 1
-
-    for projection in totals.values():
-        projection[
-            "projectedPoints"
-        ] = round(
-            projection[
-                "projectedPoints"
-            ],
-            1,
-        )
-
-    return totals
-
-
-# Returns fresh Sleeper projections or cached values during an outage.
-async def get_projection_data(
-    season: int,
-    force_refresh: bool = False,
-) -> dict[str, dict[str, Any]]:
-    """Loads season projections with persistent fallback caching."""
-
-    now = datetime.now(
-        timezone.utc,
-    )
-
-    cached_result = (
-        read_projection_cache(
-            season,
-        )
-    )
-
-    if (
-        not force_refresh
-        and cached_result is not None
-        and now - cached_result[1]
-        < PROJECTION_CACHE_TTL
-    ):
-        logger.info(
-            (
-                "projection_cache_hit "
-                "season=%s player_count=%s"
-            ),
-            season,
-            len(cached_result[0]),
-        )
-
-        return cached_result[0]
-
-    async with _projection_cache_lock:
-
-        # Another request may have refreshed the cache
-        # while this request waited for the lock.
-        cached_result = (
-            read_projection_cache(
-                season,
-            )
-        )
-
-        now = datetime.now(
-            timezone.utc,
-        )
-
-        if (
-            not force_refresh
-            and cached_result is not None
-            and now - cached_result[1]
-            < PROJECTION_CACHE_TTL
-        ):
-            return cached_result[0]
-
-        try:
-            projections = (
-                await download_projection_data(
-                    season,
-                )
-            )
-
-            cached_at = datetime.now(
-                timezone.utc,
-            )
-
-            write_projection_cache(
-                season,
-                projections,
-                cached_at,
-            )
-
-            logger.info(
-                (
-                    "projection_download_complete "
-                    "season=%s player_count=%s"
-                ),
-                season,
-                len(projections),
-            )
-
-            return projections
-
-        except (
-            httpx.HTTPError,
-            OSError,
-            ValueError,
-            json.JSONDecodeError,
-        ) as error:
-
-            if cached_result is not None:
-                logger.warning(
-                    (
-                        "projection_download_failed_using_cache "
-                        "season=%s error=%s"
-                    ),
-                    season,
-                    error,
-                )
-
-                return cached_result[0]
-
-            # Projections are useful but must never prevent
-            # the draft board from loading.
-            logger.warning(
-                (
-                    "projection_download_failed_no_cache "
-                    "season=%s error=%s"
-                ),
-                season,
-                error,
-            )
-
-            return {}
 
 
 # Converts a provider value into an optional integer.
@@ -1400,305 +1057,24 @@ def build_historical_gsis_lookup(
     return historical_lookup
 
 
-# Builds projection-aware ThunderDraft rankings while
-# preserving the market as the primary draft-value signal.
-def load_sleeper_adp_snapshot(
-    season: int,
-) -> list[dict[str, Any]]:
-    """Loads the locally cached Sleeper half-PPR ADP snapshot."""
-
-    cache_file = (
-        get_cache_directory()
-        / f"sleeper_{season}_half_ppr_adp.json"
-    )
-
-    if not cache_file.exists():
-        logger.warning(
-            (
-                "sleeper_adp_snapshot_missing "
-                "season=%s file=%s"
-            ),
-            season,
-            cache_file,
-        )
-
-        return []
-
-    try:
-        payload = json.loads(
-            cache_file.read_text(
-                encoding="utf-8",
-            ),
-        )
-
-        players = payload.get(
-            "players",
-        )
-
-        if not isinstance(
-            players,
-            list,
-        ):
-            raise ValueError(
-                "Sleeper ADP snapshot did not "
-                "contain a player list."
-            )
-
-        valid_players = [
-            player
-            for player in players
-            if (
-                isinstance(player, dict)
-                and player.get("name")
-                and player.get("position")
-                and get_optional_int(
-                    player.get("order"),
-                )
-                is not None
-            )
-        ]
-
-        logger.info(
-            (
-                "sleeper_adp_snapshot_loaded "
-                "season=%s player_count=%s"
-            ),
-            season,
-            len(valid_players),
-        )
-
-        return valid_players
-
-    except (
-        OSError,
-        ValueError,
-        TypeError,
-        json.JSONDecodeError,
-    ) as error:
-        logger.warning(
-            (
-                "sleeper_adp_snapshot_invalid "
-                "season=%s error=%s"
-            ),
-            season,
-            error,
-        )
-
-        return []
-
-
-def build_sleeper_adp_snapshot_matches(
-    players: list[NflPlayer],
-    season: int,
-) -> dict[
-    str,
-    dict[str, Any],
-]:
-    """Matches current Sleeper players to cached Sleeper ADP."""
-
-    snapshot_players = (
-        load_sleeper_adp_snapshot(
-            season,
-        )
-    )
-
-    exact_index: dict[
-        tuple[str, str, str],
-        list[dict[str, Any]],
-    ] = {}
-
-    name_position_index: dict[
-        tuple[str, str],
-        list[dict[str, Any]],
-    ] = {}
-
-    for record in snapshot_players:
-        name = normalize_player_name(
-            str(
-                record.get(
-                    "name",
-                    "",
-                )
-            )
-        )
-
-        position = (
-            str(
-                record.get(
-                    "position",
-                    "",
-                )
-            )
-            .upper()
-            .replace(
-                "D/ST",
-                "DST",
-            )
-            .replace(
-                "DEF",
-                "DST",
-            )
-        )
-
-        team = normalize_team(
-            str(
-                record.get(
-                    "team",
-                    "",
-                )
-            )
-        )
-
-        if (
-            not name
-            or position
-            not in SUPPORTED_POSITIONS
-        ):
-            continue
-
-        exact_index.setdefault(
-            (
-                name,
-                position,
-                team,
-            ),
-            [],
-        ).append(
-            record,
-        )
-
-        name_position_index.setdefault(
-            (
-                name,
-                position,
-            ),
-            [],
-        ).append(
-            record,
-        )
-
-    matches: dict[
-        str,
-        dict[str, Any],
-    ] = {}
-
-    for player in players:
-        name = normalize_player_name(
-            player.name,
-        )
-
-        position = get_player_position(
-            player,
-        )
-
-        team = normalize_team(
-            player.nflTeam,
-        )
-
-        exact_candidates = (
-            exact_index.get(
-                (
-                    name,
-                    position,
-                    team,
-                ),
-                [],
-            )
-        )
-
-        if len(exact_candidates) == 1:
-            matches[
-                player.id
-            ] = exact_candidates[0]
-            continue
-
-        fallback_candidates = (
-            name_position_index.get(
-                (
-                    name,
-                    position,
-                ),
-                [],
-            )
-        )
-
-        if len(fallback_candidates) == 1:
-            matches[
-                player.id
-            ] = fallback_candidates[0]
-
-    logger.info(
-        (
-            "sleeper_adp_snapshot_matches "
-            "season=%s matched=%s "
-            "candidates=%s"
-        ),
-        season,
-        len(matches),
-        len(players),
-    )
-
-    return matches
-
-
+# Builds one merged API draft-player record.
 def build_draft_player(
     player: NflPlayer,
     season: int,
     adp_record: dict[str, Any] | None,
     rookie_rank: int | None,
     historical_gsis_id: str | None,
-    sleeper_projection: dict[str, Any] | None,
-    sleeper_adp_record: dict[str, Any] | None,
 ) -> DraftPlayer:
     """Combines current metadata, ADP, and rookie estimates."""
 
-    projected_points = (
-        get_optional_float(
-            sleeper_projection.get(
-                "projectedPoints",
-            ),
-        )
-        if sleeper_projection
-        else None
+    (
+        projected_points,
+        projection_source,
+        projection_confidence,
+    ) = estimate_rookie_projection(
+        player,
+        adp_record,
     )
-
-    projected_weeks = (
-        get_optional_int(
-            sleeper_projection.get(
-                "projectedWeeks",
-            ),
-        )
-        if sleeper_projection
-        else None
-    )
-
-    if projected_points is not None:
-        projection_source = (
-            f"Sleeper {season} weekly half-PPR"
-        )
-
-        if (
-            projected_weeks is not None
-            and projected_weeks >= 14
-        ):
-            projection_confidence = "High"
-        elif (
-            projected_weeks is not None
-            and projected_weeks >= 8
-        ):
-            projection_confidence = "Medium"
-        else:
-            projection_confidence = "Low"
-
-    else:
-        (
-            projected_points,
-            projection_source,
-            projection_confidence,
-        ) = estimate_rookie_projection(
-            player,
-            adp_record,
-        )
 
     return DraftPlayer(
         id=player.id,
@@ -1738,54 +1114,26 @@ def build_draft_player(
         ),
         marketRank=(
             get_optional_int(
-                sleeper_adp_record.get(
-                    "order",
-                ),
+                adp_record.get("_marketRank"),
             )
-            if sleeper_adp_record
-            else (
-                get_optional_int(
-                    adp_record.get(
-                        "_marketRank",
-                    ),
-                )
-                if adp_record
-                else None
-            )
+            if adp_record
+            else None
         ),
         marketPositionRank=(
             get_optional_int(
-                sleeper_adp_record.get(
-                    "positionRank",
+                adp_record.get(
+                    "_marketPositionRank",
                 ),
             )
-            if sleeper_adp_record
-            else (
-                get_optional_int(
-                    adp_record.get(
-                        "_marketPositionRank",
-                    ),
-                )
-                if adp_record
-                else None
-            )
+            if adp_record
+            else None
         ),
         adp=(
             get_optional_float(
-                sleeper_adp_record.get(
-                    "adp",
-                ),
+                adp_record.get("adp"),
             )
-            if sleeper_adp_record
-            else (
-                get_optional_float(
-                    adp_record.get(
-                        "adp",
-                    ),
-                )
-                if adp_record
-                else None
-            )
+            if adp_record
+            else None
         ),
         adpFormatted=(
             str(
@@ -1897,22 +1245,16 @@ async def get_draft_players(
         )
     )
 
-    (
-        sleeper_response,
-        adp_result,
-        projection_data,
-    ) = await asyncio.gather(
-        get_nfl_players(
-            force_refresh=force_refresh,
-        ),
-        get_adp_data(
-            season=season,
-            force_refresh=force_refresh,
-        ),
-        get_projection_data(
-            season=season,
-            force_refresh=force_refresh,
-        ),
+    sleeper_response, adp_result = (
+        await asyncio.gather(
+            get_nfl_players(
+                force_refresh=force_refresh,
+            ),
+            get_adp_data(
+                season=season,
+                force_refresh=force_refresh,
+            ),
+        )
     )
 
     (
@@ -1926,13 +1268,6 @@ async def get_draft_players(
         for player in sleeper_response.players
         if is_draftable_player(player)
     ]
-
-    sleeper_adp_matches = (
-        build_sleeper_adp_snapshot_matches(
-            candidate_players,
-            season,
-        )
-    )
 
     adp_source_players = [
         player
@@ -2021,16 +1356,6 @@ async def get_draft_players(
                     ),
                 )
             ),
-            sleeper_projection=(
-                projection_data.get(
-                    player.id,
-                )
-            ),
-            sleeper_adp_record=(
-                sleeper_adp_matches.get(
-                    player.id,
-                )
-            ),
         )
         for player in included_players
     ]
@@ -2065,10 +1390,8 @@ async def get_draft_players(
 
     return DraftPlayerListResponse(
         source=(
-            "sleeper-player-data+"
-            "sleeper-half-ppr-adp+"
-            "fantasyfootballcalculator-fallback+"
-            "sleeper-projections"
+            "sleeper+"
+            "fantasyfootballcalculator"
         ),
         draftSeason=season,
         scoringFormat=DRAFT_SCORING_FORMAT,

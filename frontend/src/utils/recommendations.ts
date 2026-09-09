@@ -1,6 +1,7 @@
 import { recommendationWeights } from "../config/recommendationWeights";
 
 import type {
+  DraftStrategy,
   Player,
   Position,
   Recommendation,
@@ -20,6 +21,7 @@ export interface RecommendationContext {
   currentOverallPick: number | null;
   picksUntilNextTurn: number | null;
   recentDraftedPlayers?: Player[];
+  strategy?: DraftStrategy;
 }
 
 /*
@@ -46,6 +48,261 @@ const depthTargets: Record<Position, number> = {
   K: 1,
   DST: 1,
 };
+
+
+/**
+ * Adjusts recommendations to match the user's selected
+ * mock-draft strategy without overriding obvious player value.
+ */
+function getDraftStrategyScore(
+  player: Player,
+  userDraftedPlayers: Player[],
+  strategy: DraftStrategy,
+): ScoreResult {
+  if (strategy === "balanced") {
+    return {
+      score: 0,
+      reasons: [],
+    };
+  }
+
+  const reasons: string[] = [];
+  let score = 0;
+
+  const currentRound =
+    userDraftedPlayers.length + 1;
+
+  const positionCounts =
+    countPlayersByPosition(
+      userDraftedPlayers,
+    );
+
+  const isElitePlayer =
+    player.tier <= 2;
+
+  if (
+    strategy ===
+    "best-player-available"
+  ) {
+    const talentBonus = Math.max(
+      0,
+      26 -
+        player.overallRank * 0.35 -
+        (player.tier - 1) * 3,
+    );
+
+    score += talentBonus;
+
+    if (talentBonus > 0) {
+      reasons.push(
+        "Best Player Available fit: prioritizes elite talent over positional need",
+      );
+    }
+  }
+
+  if (strategy === "hero-rb") {
+    if (
+      player.position === "RB" &&
+      positionCounts.RB === 0 &&
+      currentRound <= 3
+    ) {
+      score += 40;
+
+      reasons.push(
+        "Hero RB fit: gives you the early anchor running back this strategy needs",
+      );
+    } else if (
+      player.position === "RB" &&
+      positionCounts.RB >= 1 &&
+      currentRound <= 5
+    ) {
+      score -= 18;
+    } else if (
+      player.position !== "RB" &&
+      positionCounts.RB === 0 &&
+      currentRound <= 2
+    ) {
+      score -= 10;
+    }
+
+    if (
+      player.position === "WR" &&
+      positionCounts.RB >= 1 &&
+      currentRound <= 6
+    ) {
+      score += 18;
+
+      reasons.push(
+        "Hero RB fit: builds receiver depth after securing your anchor back",
+      );
+    }
+  }
+
+  if (strategy === "zero-rb") {
+    if (
+      player.position === "RB" &&
+      currentRound <= 4
+    ) {
+      score -= 36;
+    }
+
+    if (
+      player.position === "WR" &&
+      currentRound <= 5
+    ) {
+      score += 28;
+
+      reasons.push(
+        "Zero RB fit: prioritizes an early wide receiver foundation",
+      );
+    }
+
+    if (
+      player.position === "TE" &&
+      isElitePlayer &&
+      currentRound <= 4
+    ) {
+      score += 20;
+
+      reasons.push(
+        "Zero RB fit: elite tight end value supports the early-round build",
+      );
+    }
+
+    if (
+      player.position === "QB" &&
+      isElitePlayer &&
+      currentRound <= 5
+    ) {
+      score += 16;
+
+      reasons.push(
+        "Zero RB fit: elite quarterback value complements the early receiver build",
+      );
+    }
+
+    if (
+      player.position === "RB" &&
+      currentRound >= 5 &&
+      currentRound <= 9
+    ) {
+      score += 28;
+
+      reasons.push(
+        "Zero RB fit: this is the value window for adding running backs",
+      );
+    }
+  }
+
+  if (strategy === "robust-rb") {
+    if (
+      player.position === "RB" &&
+      currentRound <= 4 &&
+      positionCounts.RB < 3
+    ) {
+      score += 34;
+
+      reasons.push(
+        "Robust RB fit: strengthens the early running back core",
+      );
+    }
+
+    if (
+      player.position === "RB" &&
+      positionCounts.RB >= 3
+    ) {
+      score -= 16;
+    }
+  }
+
+  if (strategy === "wr-heavy") {
+    if (
+      player.position === "WR" &&
+      currentRound <= 6 &&
+      positionCounts.WR < 4
+    ) {
+      score += 28;
+
+      reasons.push(
+        "WR Heavy fit: builds the deep receiver group your strategy prioritizes",
+      );
+    }
+
+    if (
+      player.position === "WR" &&
+      positionCounts.WR >= 5
+    ) {
+      score -= 12;
+    }
+  }
+
+  if (
+    strategy === "early-elite-qb"
+  ) {
+    if (
+      player.position === "QB" &&
+      isElitePlayer &&
+      currentRound <= 4 &&
+      positionCounts.QB === 0
+    ) {
+      score += 38;
+
+      reasons.push(
+        "Early Elite QB fit: secures a difference-making quarterback",
+      );
+    }
+
+    if (
+      player.position === "QB" &&
+      !isElitePlayer &&
+      currentRound <= 4
+    ) {
+      score -= 18;
+    }
+
+    if (
+      player.position === "QB" &&
+      positionCounts.QB >= 1
+    ) {
+      score -= 24;
+    }
+  }
+
+  if (strategy === "elite-te") {
+    if (
+      player.position === "TE" &&
+      isElitePlayer &&
+      currentRound <= 4 &&
+      positionCounts.TE === 0
+    ) {
+      score += 38;
+
+      reasons.push(
+        "Elite TE fit: secures the positional advantage your strategy targets",
+      );
+    }
+
+    if (
+      player.position === "TE" &&
+      !isElitePlayer &&
+      currentRound <= 4
+    ) {
+      score -= 18;
+    }
+
+    if (
+      player.position === "TE" &&
+      positionCounts.TE >= 1
+    ) {
+      score -= 20;
+    }
+  }
+
+  return {
+    score,
+    reasons,
+  };
+}
 
 /**
  * Counts the user's drafted players at each position.
@@ -745,6 +1002,20 @@ export function getRecommendations(
         score,
         reasons,
         rosterNeed,
+      );
+
+      const strategyScore =
+        getDraftStrategyScore(
+          player,
+          userDraftedPlayers,
+          context?.strategy ??
+            "balanced",
+        );
+
+      score = applyScoreResult(
+        score,
+        reasons,
+        strategyScore,
       );
 
       /*

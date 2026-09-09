@@ -1402,245 +1402,158 @@ def build_historical_gsis_lookup(
 
 # Builds projection-aware ThunderDraft rankings while
 # preserving the market as the primary draft-value signal.
-def load_sleeper_adp_snapshot(
-    season: int,
-) -> list[dict[str, Any]]:
-    """Loads the locally cached Sleeper half-PPR ADP snapshot."""
+def apply_projection_rankings(
+    players: list[DraftPlayer],
+) -> None:
+    """Assigns projection-adjusted overall rankings."""
 
-    cache_file = (
-        get_cache_directory()
-        / f"sleeper_{season}_half_ppr_adp.json"
-    )
+    position_projection_ranks: dict[
+        str,
+        dict[str, int],
+    ] = {}
 
-    if not cache_file.exists():
-        logger.warning(
-            (
-                "sleeper_adp_snapshot_missing "
-                "season=%s file=%s"
-            ),
-            season,
-            cache_file,
-        )
-
-        return []
-
-    try:
-        payload = json.loads(
-            cache_file.read_text(
-                encoding="utf-8",
-            ),
-        )
-
-        players = payload.get(
-            "players",
-        )
-
-        if not isinstance(
-            players,
-            list,
-        ):
-            raise ValueError(
-                "Sleeper ADP snapshot did not "
-                "contain a player list."
-            )
-
-        valid_players = [
+    for position in SUPPORTED_POSITIONS:
+        position_players = [
             player
             for player in players
             if (
-                isinstance(player, dict)
-                and player.get("name")
-                and player.get("position")
-                and get_optional_int(
-                    player.get("order"),
-                )
+                player.position == position
+                and player.projectedPoints
                 is not None
             )
         ]
 
-        logger.info(
-            (
-                "sleeper_adp_snapshot_loaded "
-                "season=%s player_count=%s"
+        position_players.sort(
+            key=lambda player: (
+                -(
+                    player.projectedPoints
+                    or 0.0
+                ),
+                (
+                    player.marketPositionRank
+                    if player.marketPositionRank
+                    is not None
+                    else 999999
+                ),
+                player.name.lower(),
             ),
-            season,
-            len(valid_players),
         )
 
-        return valid_players
+        position_projection_ranks[
+            position
+        ] = {
+            player.id: rank
+            for rank, player in enumerate(
+                position_players,
+                start=1,
+            )
+        }
 
-    except (
-        OSError,
-        ValueError,
-        TypeError,
-        json.JSONDecodeError,
-    ) as error:
-        logger.warning(
-            (
-                "sleeper_adp_snapshot_invalid "
-                "season=%s error=%s"
-            ),
-            season,
-            error,
+    adjusted_scores: list[
+        tuple[DraftPlayer, float]
+    ] = []
+
+    for player in players:
+        market_rank = (
+            player.marketRank
+            if player.marketRank is not None
+            else 999999
         )
 
-        return []
-
-
-def build_sleeper_adp_snapshot_matches(
-    players: list[NflPlayer],
-    season: int,
-) -> dict[
-    str,
-    dict[str, Any],
-]:
-    """Matches current Sleeper players to cached Sleeper ADP."""
-
-    snapshot_players = (
-        load_sleeper_adp_snapshot(
-            season,
-        )
-    )
-
-    exact_index: dict[
-        tuple[str, str, str],
-        list[dict[str, Any]],
-    ] = {}
-
-    name_position_index: dict[
-        tuple[str, str],
-        list[dict[str, Any]],
-    ] = {}
-
-    for record in snapshot_players:
-        name = normalize_player_name(
-            str(
-                record.get(
-                    "name",
-                    "",
-                )
-            )
+        market_position_rank = (
+            player.marketPositionRank
         )
 
-        position = (
-            str(
-                record.get(
-                    "position",
-                    "",
-                )
+        projection_position_rank = (
+            position_projection_ranks
+            .get(
+                player.position,
+                {},
             )
-            .upper()
-            .replace(
-                "D/ST",
-                "DST",
-            )
-            .replace(
-                "DEF",
-                "DST",
-            )
-        )
-
-        team = normalize_team(
-            str(
-                record.get(
-                    "team",
-                    "",
-                )
-            )
+            .get(player.id)
         )
 
         if (
-            not name
-            or position
-            not in SUPPORTED_POSITIONS
+            market_position_rank
+            is None
+            or projection_position_rank
+            is None
+            or market_rank >= 999999
         ):
-            continue
+            adjusted_score = float(
+                market_rank
+            )
 
-        exact_index.setdefault(
-            (
-                name,
-                position,
-                team,
-            ),
-            [],
-        ).append(
-            record,
-        )
+        else:
+            position_difference = (
+                market_position_rank
+                - projection_position_rank
+            )
 
-        name_position_index.setdefault(
-            (
-                name,
-                position,
-            ),
-            [],
-        ).append(
-            record,
-        )
+            if player.position in {
+                "K",
+                "DST",
+            }:
+                adjustment_weight = 0.40
+                maximum_adjustment = 4.0
+            else:
+                adjustment_weight = 1.50
+                maximum_adjustment = 12.0
 
-    matches: dict[
-        str,
-        dict[str, Any],
-    ] = {}
-
-    for player in players:
-        name = normalize_player_name(
-            player.name,
-        )
-
-        position = get_player_position(
-            player,
-        )
-
-        team = normalize_team(
-            player.nflTeam,
-        )
-
-        exact_candidates = (
-            exact_index.get(
-                (
-                    name,
-                    position,
-                    team,
+            adjustment = max(
+                -maximum_adjustment,
+                min(
+                    maximum_adjustment,
+                    position_difference
+                    * adjustment_weight,
                 ),
-                [],
+            )
+
+            # Positive adjustment means projections like
+            # the player more than the market does.
+            adjusted_score = (
+                market_rank - adjustment
+            )
+
+        adjusted_scores.append(
+            (
+                player,
+                adjusted_score,
             )
         )
 
-        if len(exact_candidates) == 1:
-            matches[
-                player.id
-            ] = exact_candidates[0]
-            continue
-
-        fallback_candidates = (
-            name_position_index.get(
-                (
-                    name,
-                    position,
-                ),
-                [],
-            )
-        )
-
-        if len(fallback_candidates) == 1:
-            matches[
-                player.id
-            ] = fallback_candidates[0]
-
-    logger.info(
-        (
-            "sleeper_adp_snapshot_matches "
-            "season=%s matched=%s "
-            "candidates=%s"
+    adjusted_scores.sort(
+        key=lambda item: (
+            item[1],
+            (
+                item[0].marketRank
+                if item[0].marketRank
+                is not None
+                else 999999
+            ),
+            (
+                -item[0].projectedPoints
+                if item[0].projectedPoints
+                is not None
+                else 0.0
+            ),
+            item[0].name.lower(),
         ),
-        season,
-        len(matches),
-        len(players),
     )
 
-    return matches
+    for thunder_rank, (
+        player,
+        _,
+    ) in enumerate(
+        adjusted_scores,
+        start=1,
+    ):
+        player.thunderDraftRank = (
+            thunder_rank
+        )
 
 
+# Builds one merged API draft-player record.
 def build_draft_player(
     player: NflPlayer,
     season: int,
@@ -1648,7 +1561,6 @@ def build_draft_player(
     rookie_rank: int | None,
     historical_gsis_id: str | None,
     sleeper_projection: dict[str, Any] | None,
-    sleeper_adp_record: dict[str, Any] | None,
 ) -> DraftPlayer:
     """Combines current metadata, ADP, and rookie estimates."""
 
@@ -1738,54 +1650,26 @@ def build_draft_player(
         ),
         marketRank=(
             get_optional_int(
-                sleeper_adp_record.get(
-                    "order",
-                ),
+                adp_record.get("_marketRank"),
             )
-            if sleeper_adp_record
-            else (
-                get_optional_int(
-                    adp_record.get(
-                        "_marketRank",
-                    ),
-                )
-                if adp_record
-                else None
-            )
+            if adp_record
+            else None
         ),
         marketPositionRank=(
             get_optional_int(
-                sleeper_adp_record.get(
-                    "positionRank",
+                adp_record.get(
+                    "_marketPositionRank",
                 ),
             )
-            if sleeper_adp_record
-            else (
-                get_optional_int(
-                    adp_record.get(
-                        "_marketPositionRank",
-                    ),
-                )
-                if adp_record
-                else None
-            )
+            if adp_record
+            else None
         ),
         adp=(
             get_optional_float(
-                sleeper_adp_record.get(
-                    "adp",
-                ),
+                adp_record.get("adp"),
             )
-            if sleeper_adp_record
-            else (
-                get_optional_float(
-                    adp_record.get(
-                        "adp",
-                    ),
-                )
-                if adp_record
-                else None
-            )
+            if adp_record
+            else None
         ),
         adpFormatted=(
             str(
@@ -1927,13 +1811,6 @@ async def get_draft_players(
         if is_draftable_player(player)
     ]
 
-    sleeper_adp_matches = (
-        build_sleeper_adp_snapshot_matches(
-            candidate_players,
-            season,
-        )
-    )
-
     adp_source_players = [
         player
         for player in adp_data.get(
@@ -2026,14 +1903,13 @@ async def get_draft_players(
                     player.id,
                 )
             ),
-            sleeper_adp_record=(
-                sleeper_adp_matches.get(
-                    player.id,
-                )
-            ),
         )
         for player in included_players
     ]
+
+    apply_projection_rankings(
+        merged_players,
+    )
 
     merged_players.sort(
         key=lambda player: (
@@ -2065,9 +1941,8 @@ async def get_draft_players(
 
     return DraftPlayerListResponse(
         source=(
-            "sleeper-player-data+"
-            "sleeper-half-ppr-adp+"
-            "fantasyfootballcalculator-fallback+"
+            "sleeper+"
+            "fantasyfootballcalculator+"
             "sleeper-projections"
         ),
         draftSeason=season,

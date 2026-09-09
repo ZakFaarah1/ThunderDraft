@@ -1400,247 +1400,7 @@ def build_historical_gsis_lookup(
     return historical_lookup
 
 
-# Builds projection-aware ThunderDraft rankings while
-# preserving the market as the primary draft-value signal.
-def load_sleeper_adp_snapshot(
-    season: int,
-) -> list[dict[str, Any]]:
-    """Loads the locally cached Sleeper half-PPR ADP snapshot."""
-
-    cache_file = (
-        get_cache_directory()
-        / f"sleeper_{season}_half_ppr_adp.json"
-    )
-
-    if not cache_file.exists():
-        logger.warning(
-            (
-                "sleeper_adp_snapshot_missing "
-                "season=%s file=%s"
-            ),
-            season,
-            cache_file,
-        )
-
-        return []
-
-    try:
-        payload = json.loads(
-            cache_file.read_text(
-                encoding="utf-8",
-            ),
-        )
-
-        players = payload.get(
-            "players",
-        )
-
-        if not isinstance(
-            players,
-            list,
-        ):
-            raise ValueError(
-                "Sleeper ADP snapshot did not "
-                "contain a player list."
-            )
-
-        valid_players = [
-            player
-            for player in players
-            if (
-                isinstance(player, dict)
-                and player.get("name")
-                and player.get("position")
-                and get_optional_int(
-                    player.get("order"),
-                )
-                is not None
-            )
-        ]
-
-        logger.info(
-            (
-                "sleeper_adp_snapshot_loaded "
-                "season=%s player_count=%s"
-            ),
-            season,
-            len(valid_players),
-        )
-
-        return valid_players
-
-    except (
-        OSError,
-        ValueError,
-        TypeError,
-        json.JSONDecodeError,
-    ) as error:
-        logger.warning(
-            (
-                "sleeper_adp_snapshot_invalid "
-                "season=%s error=%s"
-            ),
-            season,
-            error,
-        )
-
-        return []
-
-
-def build_sleeper_adp_snapshot_matches(
-    players: list[NflPlayer],
-    season: int,
-) -> dict[
-    str,
-    dict[str, Any],
-]:
-    """Matches current Sleeper players to cached Sleeper ADP."""
-
-    snapshot_players = (
-        load_sleeper_adp_snapshot(
-            season,
-        )
-    )
-
-    exact_index: dict[
-        tuple[str, str, str],
-        list[dict[str, Any]],
-    ] = {}
-
-    name_position_index: dict[
-        tuple[str, str],
-        list[dict[str, Any]],
-    ] = {}
-
-    for record in snapshot_players:
-        name = normalize_player_name(
-            str(
-                record.get(
-                    "name",
-                    "",
-                )
-            )
-        )
-
-        position = (
-            str(
-                record.get(
-                    "position",
-                    "",
-                )
-            )
-            .upper()
-            .replace(
-                "D/ST",
-                "DST",
-            )
-            .replace(
-                "DEF",
-                "DST",
-            )
-        )
-
-        team = normalize_team(
-            str(
-                record.get(
-                    "team",
-                    "",
-                )
-            )
-        )
-
-        if (
-            not name
-            or position
-            not in SUPPORTED_POSITIONS
-        ):
-            continue
-
-        exact_index.setdefault(
-            (
-                name,
-                position,
-                team,
-            ),
-            [],
-        ).append(
-            record,
-        )
-
-        name_position_index.setdefault(
-            (
-                name,
-                position,
-            ),
-            [],
-        ).append(
-            record,
-        )
-
-    matches: dict[
-        str,
-        dict[str, Any],
-    ] = {}
-
-    for player in players:
-        name = normalize_player_name(
-            player.name,
-        )
-
-        position = get_player_position(
-            player,
-        )
-
-        team = normalize_team(
-            player.nflTeam,
-        )
-
-        exact_candidates = (
-            exact_index.get(
-                (
-                    name,
-                    position,
-                    team,
-                ),
-                [],
-            )
-        )
-
-        if len(exact_candidates) == 1:
-            matches[
-                player.id
-            ] = exact_candidates[0]
-            continue
-
-        fallback_candidates = (
-            name_position_index.get(
-                (
-                    name,
-                    position,
-                ),
-                [],
-            )
-        )
-
-        if len(fallback_candidates) == 1:
-            matches[
-                player.id
-            ] = fallback_candidates[0]
-
-    logger.info(
-        (
-            "sleeper_adp_snapshot_matches "
-            "season=%s matched=%s "
-            "candidates=%s"
-        ),
-        season,
-        len(matches),
-        len(players),
-    )
-
-    return matches
-
-
+# Builds one merged API draft-player record.
 def build_draft_player(
     player: NflPlayer,
     season: int,
@@ -1648,7 +1408,6 @@ def build_draft_player(
     rookie_rank: int | None,
     historical_gsis_id: str | None,
     sleeper_projection: dict[str, Any] | None,
-    sleeper_adp_record: dict[str, Any] | None,
 ) -> DraftPlayer:
     """Combines current metadata, ADP, and rookie estimates."""
 
@@ -1738,54 +1497,26 @@ def build_draft_player(
         ),
         marketRank=(
             get_optional_int(
-                sleeper_adp_record.get(
-                    "order",
-                ),
+                adp_record.get("_marketRank"),
             )
-            if sleeper_adp_record
-            else (
-                get_optional_int(
-                    adp_record.get(
-                        "_marketRank",
-                    ),
-                )
-                if adp_record
-                else None
-            )
+            if adp_record
+            else None
         ),
         marketPositionRank=(
             get_optional_int(
-                sleeper_adp_record.get(
-                    "positionRank",
+                adp_record.get(
+                    "_marketPositionRank",
                 ),
             )
-            if sleeper_adp_record
-            else (
-                get_optional_int(
-                    adp_record.get(
-                        "_marketPositionRank",
-                    ),
-                )
-                if adp_record
-                else None
-            )
+            if adp_record
+            else None
         ),
         adp=(
             get_optional_float(
-                sleeper_adp_record.get(
-                    "adp",
-                ),
+                adp_record.get("adp"),
             )
-            if sleeper_adp_record
-            else (
-                get_optional_float(
-                    adp_record.get(
-                        "adp",
-                    ),
-                )
-                if adp_record
-                else None
-            )
+            if adp_record
+            else None
         ),
         adpFormatted=(
             str(
@@ -1927,13 +1658,6 @@ async def get_draft_players(
         if is_draftable_player(player)
     ]
 
-    sleeper_adp_matches = (
-        build_sleeper_adp_snapshot_matches(
-            candidate_players,
-            season,
-        )
-    )
-
     adp_source_players = [
         player
         for player in adp_data.get(
@@ -2026,11 +1750,6 @@ async def get_draft_players(
                     player.id,
                 )
             ),
-            sleeper_adp_record=(
-                sleeper_adp_matches.get(
-                    player.id,
-                )
-            ),
         )
         for player in included_players
     ]
@@ -2065,9 +1784,8 @@ async def get_draft_players(
 
     return DraftPlayerListResponse(
         source=(
-            "sleeper-player-data+"
-            "sleeper-half-ppr-adp+"
-            "fantasyfootballcalculator-fallback+"
+            "sleeper+"
+            "fantasyfootballcalculator+"
             "sleeper-projections"
         ),
         draftSeason=season,

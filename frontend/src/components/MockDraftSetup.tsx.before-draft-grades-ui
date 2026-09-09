@@ -44,7 +44,6 @@ import {
   FANTASY_ROSTER_LIMIT,
 } from "../utils/rosterLimits";
 
-import DraftReportCard from "./DraftReportCard";
 import MyRoster from "./MyRoster";
 import PlayerBoard from "./PlayerBoard";
 import RecommendationsPanel from "./RecommendationsPanel";
@@ -1018,13 +1017,6 @@ function MockDraftSetup() {
             </button>
           </div>
         </section>
-
-        {draftIsComplete && (
-          <DraftReportCard
-            picks={session.picks}
-            teams={fantasyTeams}
-          />
-        )}
 
         {isUserOnClock && (
           <RecommendationsPanel

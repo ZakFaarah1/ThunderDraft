@@ -30,6 +30,9 @@ interface CpuStyleSettings {
   randomRange: number;
   candidatePoolSize: number;
   selectionTemperature: number;
+  earlyReachTolerance: number;
+  middleReachTolerance: number;
+  lateReachTolerance: number;
 }
 
 const ROSTER_LIMIT = 15;
@@ -92,6 +95,9 @@ function getCpuStyleSettings(
       randomRange: 5,
       candidatePoolSize: 6,
       selectionTemperature: 8,
+      earlyReachTolerance: 8,
+      middleReachTolerance: 12,
+      lateReachTolerance: 18,
     };
   }
 
@@ -103,6 +109,9 @@ function getCpuStyleSettings(
       randomRange: 35,
       candidatePoolSize: 14,
       selectionTemperature: 30,
+      earlyReachTolerance: 24,
+      middleReachTolerance: 36,
+      lateReachTolerance: 48,
     };
   }
 
@@ -113,6 +122,9 @@ function getCpuStyleSettings(
     randomRange: 14,
     candidatePoolSize: 9,
     selectionTemperature: 16,
+    earlyReachTolerance: 14,
+    middleReachTolerance: 20,
+    lateReachTolerance: 30,
   };
 }
 
@@ -176,6 +188,21 @@ function getExpectedPick(
   }
 
   return 250;
+}
+
+function getReachTolerance(
+  settings: CpuStyleSettings,
+  round: number,
+): number {
+  if (round <= 5) {
+    return settings.earlyReachTolerance;
+  }
+
+  if (round <= 10) {
+    return settings.middleReachTolerance;
+  }
+
+  return settings.lateReachTolerance;
 }
 
 function canDraftPosition(
@@ -658,146 +685,46 @@ export function rankCpuDraftCandidates(
     return [];
   }
 
-  /*
-   * Human-draft realism guard.
-   *
-   * A CPU normally cannot:
-   *
-   * 1. Reach more than three spots beyond the
-   *    player's ThunderDraft overall ranking.
-   *
-   * 2. Reach more than three positional ranks beyond
-   *    the best currently available player at that
-   *    same position.
-   *
-   * ADP, roster need, tiers, and randomness still
-   * determine which player wins INSIDE this window.
-   */
-  const MAX_OVERALL_REACH = 3;
-  const MAX_POSITIONAL_REACH = 3;
+  const reachTolerance =
+    getReachTolerance(
+      settings,
+      round,
+    );
 
-  const bestPositionRanks: Record<
-    Position,
-    number
-  > = {
-    QB: Number.POSITIVE_INFINITY,
-    RB: Number.POSITIVE_INFINITY,
-    WR: Number.POSITIVE_INFINITY,
-    TE: Number.POSITIVE_INFINITY,
-    K: Number.POSITIVE_INFINITY,
-    DST: Number.POSITIVE_INFINITY,
-  };
-
-  legalPlayers.forEach(
-    (player) => {
-      bestPositionRanks[
-        player.position
-      ] = Math.min(
-        bestPositionRanks[
-          player.position
-        ],
-        player.positionRank,
-      );
-    },
-  );
-
-  const realisticCandidates =
+  const marketWindow =
     legalPlayers.filter(
-      (player) => {
-        const overallReach =
-          player.overallRank -
-          overallPick;
-
-        const positionalReach =
-          player.positionRank -
-          bestPositionRanks[
-            player.position
-          ];
-
-        return (
-          overallReach <=
-            MAX_OVERALL_REACH &&
-          positionalReach <=
-            MAX_POSITIONAL_REACH
-        );
-      },
+      (player) =>
+        getExpectedPick(player) <=
+        overallPick +
+          reachTolerance,
     );
 
   /*
-   * Normally this pool will contain several players.
-   *
-   * In the unusual case where roster constraints leave
-   * nobody inside both +3 limits, use the least-reach
-   * legal options rather than skipping the CPU pick.
+   * We normally draft from a realistic market window.
+   * If it becomes too small, fall back only to the
+   * best market options rather than the entire pool.
    */
   const candidateSource =
-    realisticCandidates.length > 0
-      ? realisticCandidates
+    marketWindow.length >= 4 ||
+    marketWindow.length ===
+      legalPlayers.length
+      ? marketWindow
       : [...legalPlayers]
           .sort(
             (
               first,
               second,
-            ) => {
-              const firstOverallReach =
-                Math.max(
-                  0,
-                  first.overallRank -
-                    overallPick,
-                );
-
-              const secondOverallReach =
-                Math.max(
-                  0,
-                  second.overallRank -
-                    overallPick,
-                );
-
-              const firstPositionReach =
-                Math.max(
-                  0,
-                  first.positionRank -
-                    bestPositionRanks[
-                      first.position
-                    ],
-                );
-
-              const secondPositionReach =
-                Math.max(
-                  0,
-                  second.positionRank -
-                    bestPositionRanks[
-                      second.position
-                    ],
-                );
-
-              const firstPenalty =
-                firstOverallReach * 2 +
-                firstPositionReach;
-
-              const secondPenalty =
-                secondOverallReach * 2 +
-                secondPositionReach;
-
-              if (
-                firstPenalty !==
-                secondPenalty
-              ) {
-                return (
-                  firstPenalty -
-                  secondPenalty
-                );
-              }
-
-              return (
-                getExpectedPick(first) -
-                getExpectedPick(second)
-              );
-            },
+            ) =>
+              getExpectedPick(first) -
+              getExpectedPick(second),
           )
           .slice(
             0,
-            settings.candidatePoolSize,
+            Math.max(
+              8,
+              settings.candidatePoolSize *
+                2,
+            ),
           );
 
   return candidateSource

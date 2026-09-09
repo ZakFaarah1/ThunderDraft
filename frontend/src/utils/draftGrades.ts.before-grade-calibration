@@ -1,0 +1,896 @@
+import type {
+  FantasyTeam,
+  Player,
+  Position,
+} from "../types";
+
+import {
+  getRosterHealthReport,
+} from "./rosterHealth";
+
+export interface DraftGradePick {
+  id: string;
+  overallPick: number;
+  fantasyTeamId: string;
+  player: Player;
+}
+
+export interface DraftPickAnalysis {
+  playerId: string;
+  playerName: string;
+  position: Position;
+  overallPick: number;
+  expectedPick: number;
+  valueDifference: number;
+}
+
+export interface DraftCategoryGrade {
+  score: number;
+  maximumScore: number;
+  percentage: number;
+  leagueRank: number;
+}
+
+export interface TeamDraftGrade {
+  fantasyTeamId: string;
+  teamName: string;
+  overallScore: number;
+  letterGrade: string;
+  leagueRank: number;
+
+  startingLineup: DraftCategoryGrade;
+  draftValue: DraftCategoryGrade;
+  rosterConstruction: DraftCategoryGrade;
+  benchStrength: DraftCategoryGrade;
+  riskManagement: DraftCategoryGrade;
+
+  bestValue: DraftPickAnalysis | null;
+  biggestReach: DraftPickAnalysis | null;
+
+  strongestCategory: string;
+  weakestCategory: string;
+
+  strengths: string[];
+  concerns: string[];
+}
+
+export interface DraftGradingReport {
+  teams: TeamDraftGrade[];
+  averageScore: number;
+  highestScore: number;
+  lowestScore: number;
+}
+
+/*
+ * Category weights add to 100 total points.
+ */
+const gradingWeights = {
+  startingLineup: 35,
+  draftValue: 25,
+  rosterConstruction: 20,
+  benchStrength: 15,
+  riskManagement: 5,
+} as const;
+
+/**
+ * Keeps a numeric value inside a range.
+ */
+function clamp(
+  value: number,
+  minimum: number,
+  maximum: number,
+): number {
+  return Math.min(
+    maximum,
+    Math.max(minimum, value),
+  );
+}
+
+/**
+ * Rounds scores to one decimal place.
+ */
+function roundOne(
+  value: number,
+): number {
+  return (
+    Math.round(value * 10) / 10
+  );
+}
+
+/**
+ * Converts a percentage score into its weighted
+ * category score.
+ */
+function buildCategoryGrade(
+  percentage: number,
+  maximumScore: number,
+): DraftCategoryGrade {
+  const normalizedPercentage =
+    clamp(
+      percentage,
+      0,
+      100,
+    );
+
+  return {
+    score: roundOne(
+      normalizedPercentage /
+        100 *
+        maximumScore,
+    ),
+    maximumScore,
+    percentage:
+      roundOne(
+        normalizedPercentage,
+      ),
+    leagueRank: 0,
+  };
+}
+
+/**
+ * Converts a 0-100 draft score into a familiar
+ * fantasy-football report-card grade.
+ */
+export function getDraftLetterGrade(
+  score: number,
+): string {
+  if (score >= 97) {
+    return "A+";
+  }
+
+  if (score >= 93) {
+    return "A";
+  }
+
+  if (score >= 90) {
+    return "A-";
+  }
+
+  if (score >= 87) {
+    return "B+";
+  }
+
+  if (score >= 83) {
+    return "B";
+  }
+
+  if (score >= 80) {
+    return "B-";
+  }
+
+  if (score >= 77) {
+    return "C+";
+  }
+
+  if (score >= 73) {
+    return "C";
+  }
+
+  if (score >= 70) {
+    return "C-";
+  }
+
+  if (score >= 67) {
+    return "D+";
+  }
+
+  if (score >= 63) {
+    return "D";
+  }
+
+  if (score >= 60) {
+    return "D-";
+  }
+
+  return "F";
+}
+
+/**
+ * Blends ThunderDraft rank and market ADP to avoid
+ * letting either source completely control draft value.
+ */
+function getExpectedDraftPick(
+  player: Player,
+): number {
+  const rank =
+    Number.isFinite(
+      player.overallRank,
+    ) &&
+    player.overallRank > 0
+      ? player.overallRank
+      : null;
+
+  const adp =
+    player.adp !== null &&
+    Number.isFinite(player.adp) &&
+    player.adp > 0
+      ? player.adp
+      : null;
+
+  if (
+    adp !== null &&
+    rank !== null
+  ) {
+    return roundOne(
+      adp * 0.6 +
+        rank * 0.4,
+    );
+  }
+
+  if (adp !== null) {
+    return adp;
+  }
+
+  if (rank !== null) {
+    return rank;
+  }
+
+  return 250;
+}
+
+/**
+ * Evaluates how much value a team gained or lost
+ * relative to expected draft position.
+ */
+function getDraftValueGrade(
+  picks: DraftGradePick[],
+): {
+  percentage: number;
+  analyses: DraftPickAnalysis[];
+} {
+  if (picks.length === 0) {
+    return {
+      percentage: 0,
+      analyses: [],
+    };
+  }
+
+  const analyses =
+    picks.map(
+      (
+        pick,
+      ): DraftPickAnalysis => {
+        const expectedPick =
+          getExpectedDraftPick(
+            pick.player,
+          );
+
+        /*
+         * Positive means the player was drafted later
+         * than expected and therefore represents value.
+         *
+         * Example:
+         * Expected pick 20, drafted at 30 = +10 value.
+         */
+        const valueDifference =
+          roundOne(
+            pick.overallPick -
+              expectedPick,
+          );
+
+        return {
+          playerId:
+            pick.player.id,
+          playerName:
+            pick.player.name,
+          position:
+            pick.player.position,
+          overallPick:
+            pick.overallPick,
+          expectedPick,
+          valueDifference,
+        };
+      },
+    );
+
+  /*
+   * Earlier picks matter somewhat more because
+   * first-round mistakes generally matter more than
+   * equivalent late-round reaches.
+   */
+  const weightedResults =
+    analyses.map(
+      (
+        analysis,
+        index,
+      ) => {
+        const roundWeight =
+          Math.max(
+            0.55,
+            1 -
+              index *
+                0.032,
+          );
+
+        const pickScore =
+          clamp(
+            76 +
+              analysis
+                .valueDifference *
+                1.35,
+            25,
+            100,
+          );
+
+        return {
+          score:
+            pickScore *
+            roundWeight,
+          weight:
+            roundWeight,
+        };
+      },
+    );
+
+  const totalWeight =
+    weightedResults.reduce(
+      (
+        total,
+        result,
+      ) =>
+        total +
+        result.weight,
+      0,
+    );
+
+  const percentage =
+    weightedResults.reduce(
+      (
+        total,
+        result,
+      ) =>
+        total +
+        result.score,
+      0,
+    ) /
+    Math.max(
+      totalWeight,
+      1,
+    );
+
+  return {
+    percentage:
+      roundOne(
+        percentage,
+      ),
+    analyses,
+  };
+}
+
+/**
+ * Counts drafted players by fantasy position.
+ */
+function countPositions(
+  players: Player[],
+): Record<
+  Position,
+  number
+> {
+  const counts: Record<
+    Position,
+    number
+  > = {
+    QB: 0,
+    RB: 0,
+    WR: 0,
+    TE: 0,
+    K: 0,
+    DST: 0,
+  };
+
+  players.forEach(
+    (player) => {
+      counts[player.position] += 1;
+    },
+  );
+
+  return counts;
+}
+
+/**
+ * Grades risk independently from pure roster quality.
+ *
+ * This intentionally has a small weight so imperfect
+ * injury or bye-week data cannot overwhelm the grade.
+ */
+function getRiskManagementPercentage(
+  players: Player[],
+): number {
+  if (players.length === 0) {
+    return 0;
+  }
+
+  let score = 100;
+
+  const counts =
+    countPositions(players);
+
+  /*
+   * One backup QB or second TE is reasonable.
+   * Large amounts of redundant depth are not.
+   */
+  if (counts.QB > 2) {
+    score -=
+      (counts.QB - 2) * 14;
+  }
+
+  if (counts.TE > 2) {
+    score -=
+      (counts.TE - 2) * 10;
+  }
+
+  if (counts.K > 1) {
+    score -=
+      (counts.K - 1) * 18;
+  }
+
+  if (counts.DST > 1) {
+    score -=
+      (counts.DST - 1) * 18;
+  }
+
+  /*
+   * Only clearly unavailable injury statuses create
+   * meaningful risk penalties.
+   */
+  players.forEach(
+    (player) => {
+      const status =
+        player.injuryStatus
+          ?.trim()
+          .toLowerCase() ??
+        "";
+
+      if (
+        status === "ir" ||
+        status === "pup" ||
+        status === "out"
+      ) {
+        score -= 8;
+      } else if (
+        status === "doubtful"
+      ) {
+        score -= 4;
+      }
+    },
+  );
+
+  /*
+   * Measures large bye-week concentrations.
+   * Two players sharing a bye is normal; three or more
+   * begins creating meaningful lineup risk.
+   */
+  const byeWeekCounts =
+    new Map<number, number>();
+
+  players.forEach(
+    (player) => {
+      if (
+        player.byeWeek !== null &&
+        Number.isFinite(
+          player.byeWeek,
+        )
+      ) {
+        byeWeekCounts.set(
+          player.byeWeek,
+          (
+            byeWeekCounts.get(
+              player.byeWeek,
+            ) ?? 0
+          ) + 1,
+        );
+      }
+    },
+  );
+
+  byeWeekCounts.forEach(
+    (count) => {
+      if (count > 3) {
+        score -=
+          (count - 3) * 3;
+      }
+    },
+  );
+
+  return roundOne(
+    clamp(
+      score,
+      0,
+      100,
+    ),
+  );
+}
+
+/**
+ * Converts a category key into a readable report label.
+ */
+function getCategoryLabel(
+  category:
+    | "startingLineup"
+    | "draftValue"
+    | "rosterConstruction"
+    | "benchStrength"
+    | "riskManagement",
+): string {
+  if (
+    category ===
+    "startingLineup"
+  ) {
+    return "Starting Lineup";
+  }
+
+  if (
+    category ===
+    "draftValue"
+  ) {
+    return "Draft Value";
+  }
+
+  if (
+    category ===
+    "rosterConstruction"
+  ) {
+    return "Roster Construction";
+  }
+
+  if (
+    category ===
+    "benchStrength"
+  ) {
+    return "Bench Strength";
+  }
+
+  return "Risk Management";
+}
+
+/**
+ * Assigns rank 1 to the highest category score.
+ */
+function assignCategoryRanks(
+  teams: TeamDraftGrade[],
+  category:
+    | "startingLineup"
+    | "draftValue"
+    | "rosterConstruction"
+    | "benchStrength"
+    | "riskManagement",
+) {
+  const sorted =
+    [...teams].sort(
+      (
+        firstTeam,
+        secondTeam,
+      ) =>
+        secondTeam[category]
+          .percentage -
+        firstTeam[category]
+          .percentage,
+    );
+
+  sorted.forEach(
+    (
+      team,
+      index,
+    ) => {
+      team[category].leagueRank =
+        index + 1;
+    },
+  );
+}
+
+/**
+ * Grades every roster using the exact same model and
+ * ranks the entire league.
+ */
+export function getDraftGradingReport({
+  teams,
+  picks,
+}: {
+  teams: FantasyTeam[];
+  picks: DraftGradePick[];
+}): DraftGradingReport {
+  const teamGrades =
+    teams.map(
+      (
+        team,
+      ): TeamDraftGrade => {
+        const teamPicks =
+          picks
+            .filter(
+              (pick) =>
+                pick.fantasyTeamId ===
+                team.id,
+            )
+            .sort(
+              (
+                firstPick,
+                secondPick,
+              ) =>
+                firstPick.overallPick -
+                secondPick.overallPick,
+            );
+
+        const players =
+          teamPicks.map(
+            (pick) =>
+              pick.player,
+          );
+
+        const rosterHealth =
+          getRosterHealthReport(
+            players,
+          );
+
+        const draftValue =
+          getDraftValueGrade(
+            teamPicks,
+          );
+
+        const startingLineup =
+          buildCategoryGrade(
+            rosterHealth.starterGrade,
+            gradingWeights
+              .startingLineup,
+          );
+
+        const draftValueCategory =
+          buildCategoryGrade(
+            draftValue.percentage,
+            gradingWeights
+              .draftValue,
+          );
+
+        const rosterConstruction =
+          buildCategoryGrade(
+            rosterHealth
+              .constructionGrade,
+            gradingWeights
+              .rosterConstruction,
+          );
+
+        const benchStrength =
+          buildCategoryGrade(
+            rosterHealth.benchGrade,
+            gradingWeights
+              .benchStrength,
+          );
+
+        const riskManagement =
+          buildCategoryGrade(
+            getRiskManagementPercentage(
+              players,
+            ),
+            gradingWeights
+              .riskManagement,
+          );
+
+        const overallScore =
+          roundOne(
+            startingLineup.score +
+              draftValueCategory.score +
+              rosterConstruction.score +
+              benchStrength.score +
+              riskManagement.score,
+          );
+
+        const bestValue =
+          [...draftValue.analyses]
+            .filter(
+              (analysis) =>
+                analysis.valueDifference >
+                0,
+            )
+            .sort(
+              (
+                first,
+                second,
+              ) =>
+                second.valueDifference -
+                first.valueDifference,
+            )[0] ?? null;
+
+        const biggestReach =
+          [...draftValue.analyses]
+            .filter(
+              (analysis) =>
+                analysis.valueDifference <
+                0,
+            )
+            .sort(
+              (
+                first,
+                second,
+              ) =>
+                first.valueDifference -
+                second.valueDifference,
+            )[0] ?? null;
+
+        const categories = [
+          {
+            key:
+              "startingLineup" as const,
+            percentage:
+              startingLineup.percentage,
+          },
+          {
+            key:
+              "draftValue" as const,
+            percentage:
+              draftValueCategory
+                .percentage,
+          },
+          {
+            key:
+              "rosterConstruction" as const,
+            percentage:
+              rosterConstruction
+                .percentage,
+          },
+          {
+            key:
+              "benchStrength" as const,
+            percentage:
+              benchStrength.percentage,
+          },
+          {
+            key:
+              "riskManagement" as const,
+            percentage:
+              riskManagement.percentage,
+          },
+        ].sort(
+          (
+            first,
+            second,
+          ) =>
+            second.percentage -
+            first.percentage,
+        );
+
+        return {
+          fantasyTeamId:
+            team.id,
+          teamName:
+            team.name,
+          overallScore,
+          letterGrade:
+            getDraftLetterGrade(
+              overallScore,
+            ),
+          leagueRank: 0,
+
+          startingLineup,
+          draftValue:
+            draftValueCategory,
+          rosterConstruction,
+          benchStrength,
+          riskManagement,
+
+          bestValue:
+            bestValue ?? null,
+          biggestReach:
+            biggestReach ?? null,
+
+          strongestCategory:
+            getCategoryLabel(
+              categories[0].key,
+            ),
+          weakestCategory:
+            getCategoryLabel(
+              categories[
+                categories.length - 1
+              ].key,
+            ),
+
+          strengths:
+            rosterHealth.strengths
+              .slice(0, 3),
+
+          concerns:
+            rosterHealth.issues
+              .sort(
+                (
+                  first,
+                  second,
+                ) =>
+                  second.priority -
+                  first.priority,
+              )
+              .slice(0, 3)
+              .map(
+                (issue) =>
+                  issue.title,
+              ),
+        };
+      },
+    );
+
+  /*
+   * Overall league ranking.
+   */
+  teamGrades.sort(
+    (
+      first,
+      second,
+    ) =>
+      second.overallScore -
+        first.overallScore ||
+      second.startingLineup
+        .percentage -
+        first.startingLineup
+          .percentage ||
+      second.draftValue
+        .percentage -
+        first.draftValue
+          .percentage,
+  );
+
+  teamGrades.forEach(
+    (
+      team,
+      index,
+    ) => {
+      team.leagueRank =
+        index + 1;
+    },
+  );
+
+  assignCategoryRanks(
+    teamGrades,
+    "startingLineup",
+  );
+
+  assignCategoryRanks(
+    teamGrades,
+    "draftValue",
+  );
+
+  assignCategoryRanks(
+    teamGrades,
+    "rosterConstruction",
+  );
+
+  assignCategoryRanks(
+    teamGrades,
+    "benchStrength",
+  );
+
+  assignCategoryRanks(
+    teamGrades,
+    "riskManagement",
+  );
+
+  const scores =
+    teamGrades.map(
+      (team) =>
+        team.overallScore,
+    );
+
+  const averageScore =
+    scores.length > 0
+      ? roundOne(
+          scores.reduce(
+            (
+              total,
+              score,
+            ) =>
+              total + score,
+            0,
+          ) /
+            scores.length,
+        )
+      : 0;
+
+  return {
+    teams: teamGrades,
+    averageScore,
+    highestScore:
+      scores.length > 0
+        ? Math.max(...scores)
+        : 0,
+    lowestScore:
+      scores.length > 0
+        ? Math.min(...scores)
+        : 0,
+  };
+}

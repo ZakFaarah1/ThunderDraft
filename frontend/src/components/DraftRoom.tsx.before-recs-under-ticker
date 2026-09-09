@@ -1149,6 +1149,40 @@ function DraftRoom({
         </div>
       )}
 
+      {!draftIsComplete &&
+        isUserOnClock && (
+        <RecommendationsPanel
+          availablePlayers={
+            availablePlayers
+          }
+          currentOverallPick={
+            nextOverallPick
+          }
+          picksUntilNextTurn={
+            picksUntilNextTurn
+          }
+          recentDraftedPlayers={
+            recentDraftedPlayers
+          }
+          userDraftedPlayers={
+            userDraftedPlayers
+          }
+          isRosterFull={
+            isActiveTeamRosterFull
+          }
+          isUserOnClock={
+            isUserOnClock
+          }
+          rosterCount={
+            activeTeamRosterCount
+          }
+          rosterLimit={
+            FANTASY_ROSTER_LIMIT
+          }
+          onDraftPlayer={draftPlayer}
+        />
+      )}
+
       {draftPoolLoading && (
         <div className="draft-pool-status">
           <strong>
@@ -1616,40 +1650,6 @@ function DraftRoom({
           </section>
         );
       })()}
-
-      {!draftIsComplete &&
-        isUserOnClock && (
-        <RecommendationsPanel
-          availablePlayers={
-            availablePlayers
-          }
-          currentOverallPick={
-            nextOverallPick
-          }
-          picksUntilNextTurn={
-            picksUntilNextTurn
-          }
-          recentDraftedPlayers={
-            recentDraftedPlayers
-          }
-          userDraftedPlayers={
-            userDraftedPlayers
-          }
-          isRosterFull={
-            isActiveTeamRosterFull
-          }
-          isUserOnClock={
-            isUserOnClock
-          }
-          rosterCount={
-            activeTeamRosterCount
-          }
-          rosterLimit={
-            FANTASY_ROSTER_LIMIT
-          }
-          onDraftPlayer={draftPlayer}
-        />
-      )}
 
       <div className="draft-room-layout">
         <div className="draft-main-column">

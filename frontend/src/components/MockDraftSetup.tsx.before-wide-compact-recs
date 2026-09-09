@@ -44,7 +44,6 @@ import {
   FANTASY_ROSTER_LIMIT,
 } from "../utils/rosterLimits";
 
-import DraftReportCard from "./DraftReportCard";
 import MyRoster from "./MyRoster";
 import PlayerBoard from "./PlayerBoard";
 import RecommendationsPanel from "./RecommendationsPanel";
@@ -1019,54 +1018,6 @@ function MockDraftSetup() {
           </div>
         </section>
 
-        {draftIsComplete && (
-          <DraftReportCard
-            picks={session.picks}
-            teams={fantasyTeams}
-          />
-        )}
-
-        {isUserOnClock && (
-          <RecommendationsPanel
-            availablePlayers={
-              availablePlayers
-            }
-            userDraftedPlayers={
-              userDraftedPlayers
-            }
-            recentDraftedPlayers={
-              recentDraftedPlayers
-            }
-            currentOverallPick={
-              Math.min(
-                session.currentOverallPick,
-                totalPicks,
-              )
-            }
-            picksUntilNextTurn={
-              picksUntilNextTurn
-            }
-            isRosterFull={
-              userRosterIsFull
-            }
-            isUserOnClock={
-              isUserOnClock
-            }
-            rosterCount={
-              userDraftedPlayers.length
-            }
-            rosterLimit={
-              FANTASY_ROSTER_LIMIT
-            }
-            strategy={
-              session.settings.strategy
-            }
-            onDraftPlayer={
-              draftMockPlayer
-            }
-          />
-        )}
-
         <div className="draft-room-layout">
           <div className="draft-main-column">
             <PlayerBoard
@@ -1095,6 +1046,45 @@ function MockDraftSetup() {
           </div>
 
           <div className="draft-sidebar">
+            <RecommendationsPanel
+              availablePlayers={
+                availablePlayers
+              }
+              userDraftedPlayers={
+                userDraftedPlayers
+              }
+              recentDraftedPlayers={
+                recentDraftedPlayers
+              }
+              currentOverallPick={
+                Math.min(
+                  session.currentOverallPick,
+                  totalPicks,
+                )
+              }
+              picksUntilNextTurn={
+                picksUntilNextTurn
+              }
+              isRosterFull={
+                userRosterIsFull
+              }
+              isUserOnClock={
+                isUserOnClock
+              }
+              rosterCount={
+                userDraftedPlayers.length
+              }
+              rosterLimit={
+                FANTASY_ROSTER_LIMIT
+              }
+              strategy={
+                session.settings.strategy
+              }
+              onDraftPlayer={
+                draftMockPlayer
+              }
+            />
+
             <MyRoster
               players={
                 userDraftedPlayers
